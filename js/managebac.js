@@ -50,14 +50,16 @@
 
   function toIso(value, fallback) {
     if (!value) return fallback;
+
+    /* Date-only fields must be handled BEFORE new Date(): JS parses a bare
+       "2026-08-25" as midnight UTC, which in an eastern timezone lands mid-
+       morning local and would mark the work overdue during the school day.
+       A due date with no time means end of that day, locally. */
+    var m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(String(value).trim());
+    if (m) return new Date(+m[1], +m[2] - 1, +m[3], 23, 59, 0).toISOString();
+
     var d = new Date(value);
-    if (isNaN(d.getTime())) {
-      /* Tolerate ManageBac's date-only fields — treat them as end of day. */
-      var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value).trim());
-      if (m) return new Date(+m[1], +m[2] - 1, +m[3], 23, 59, 0).toISOString();
-      return fallback;
-    }
-    return d.toISOString();
+    return isNaN(d.getTime()) ? fallback : d.toISOString();
   }
 
   /**

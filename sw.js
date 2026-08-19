@@ -9,7 +9,7 @@
  *      once the app has been installed.
  */
 
-var CACHE = 'atlas-shell-v1';
+var CACHE = 'atlas-shell-v2';
 var SNAPSHOT_URL = '/__atlas_snapshot__';   // virtual key inside the cache
 
 var SHELL = [
@@ -20,7 +20,10 @@ var SHELL = [
   './manifest.webmanifest',
   './js/util.js',
   './js/store.js',
+  './js/auth.js',
   './js/managebac.js',
+  './js/files.js',
+  './js/assistant.js',
   './js/notify.js',
   './js/ui.js',
   './js/app.js',
@@ -51,7 +54,9 @@ self.addEventListener('activate', function (event) {
 self.addEventListener('fetch', function (event) {
   var req = event.request;
   if (req.method !== 'GET') return;
-  if (new URL(req.url).origin !== self.location.origin) return;   // let the CDN and fonts through untouched
+  var url = new URL(req.url);
+  if (url.origin !== self.location.origin) return;        // let the CDN and fonts through untouched
+  if (url.pathname.indexOf('/api/') === 0) return;        // never cache or offline-fall-back the API
 
   event.respondWith(
     fetch(req).then(function (res) {

@@ -136,6 +136,11 @@
           Import
         </button>
 
+        <button data-act="assistant" id="assistantToggle" class="h-9 px-3 rounded-lg bg-ink-850 ring-1 ring-white/[0.06] hover:ring-atlas-500/35 inline-flex items-center gap-2 text-[13px] text-haze-300 hover:text-atlas-200 transition" title="Explain a question (a)">
+          <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5 13.7 8.3 18.5 10 13.7 11.7 12 16.5 10.3 11.7 5.5 10 10.3 8.3z"/><path d="M18 16.5 18.7 18.3 20.5 19 18.7 19.7 18 21.5 17.3 19.7 15.5 19 17.3 18.3z"/></svg>
+          <span class="hidden md:inline">Explain</span>
+        </button>
+
         <button data-act="new" class="h-9 px-3.5 rounded-lg bg-atlas-500 text-ink-950 font-semibold text-[13px] inline-flex items-center gap-1.5 hover:bg-atlas-400 shadow-[0_6px_20px_-8px_rgba(95,211,188,.8)] transition">
           <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
           <span class="hidden sm:inline">New</span>
@@ -180,6 +185,44 @@
     </div>
   </main>
 </div>
+
+<!-- ========================= ASSISTANT PANEL ========================= -->
+
+<div id="assistantScrim" class="fixed inset-0 z-30 bg-ink-950/70 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity duration-300" data-act="close-assistant"></div>
+
+<aside id="assistantPanel" class="fixed inset-y-0 right-0 z-40 w-full sm:w-[430px] bg-ink-900 border-l border-white/[0.07] shadow-2xl flex flex-col translate-x-full transition-transform duration-300 ease-out" aria-label="Study assistant">
+
+  <div class="px-4 py-3.5 border-b border-white/[0.06] flex items-center gap-2.5">
+    <span class="h-8 w-8 rounded-lg bg-atlas-500/12 ring-1 ring-atlas-500/25 grid place-items-center text-atlas-300">
+      <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5 13.7 8.3 18.5 10 13.7 11.7 12 16.5 10.3 11.7 5.5 10 10.3 8.3z"/><path d="M18 16.5 18.7 18.3 20.5 19 18.7 19.7 18 21.5 17.3 19.7 15.5 19 17.3 18.3z"/></svg>
+    </span>
+    <div class="min-w-0 flex-1">
+      <h2 class="text-[14px] font-semibold text-slate-100 tracking-tight leading-tight">Explain this question</h2>
+      <p id="assistantEngine" class="text-[11px] text-haze-500 truncate">Checking…</p>
+    </div>
+    <button data-act="clear-thread" class="h-7 px-2 rounded-md text-[11.5px] text-haze-500 hover:text-slate-200 hover:bg-white/5 transition" title="Clear the conversation">Clear</button>
+    <button data-act="close-assistant" class="h-7 w-7 rounded-md grid place-items-center text-haze-500 hover:text-slate-200 hover:bg-white/5 transition">&#10005;</button>
+  </div>
+
+  <div id="assistantThread" class="flex-1 overflow-y-auto px-4 py-4 space-y-4"></div>
+
+  <div class="border-t border-white/[0.06] p-3 space-y-2.5">
+    <div id="assistantFiles" class="flex flex-wrap gap-1.5 empty:hidden"></div>
+    <div class="relative rounded-xl bg-ink-850 ring-1 ring-white/[0.06] focus-within:ring-atlas-500/35 transition">
+      <textarea id="assistantInput" rows="3" placeholder="Paste the question that's confusing you…"
+        class="w-full bg-transparent border-0 outline-none resize-none px-3.5 pt-3 pb-1 text-[13.5px] text-slate-200 placeholder:text-haze-500"></textarea>
+      <div class="flex items-center gap-1.5 px-2.5 pb-2.5">
+        <button data-act="assistant-attach" class="h-8 w-8 rounded-lg grid place-items-center text-haze-500 hover:text-atlas-300 hover:bg-white/5 transition" title="Attach a photo, PDF or file of the question">
+          <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5 12.5 20a5 5 0 0 1-7-7l8.5-8.5a3.4 3.4 0 0 1 4.8 4.8L9.8 17.3a1.7 1.7 0 0 1-2.4-2.4l7.8-7.8"/></svg>
+        </button>
+        <input type="file" id="assistantFileInput" multiple accept="image/*,application/pdf,.txt,.md,.csv,.tsv,.json,.rtf" class="hidden" />
+        <span class="text-[11px] text-haze-600 hidden sm:inline">Ctrl+Enter to send</span>
+        <div class="flex-1"></div>
+        <button data-act="assistant-send" id="assistantSend" class="h-8 px-3.5 rounded-lg bg-atlas-500 text-ink-950 font-semibold text-[12.5px] hover:bg-atlas-400 disabled:opacity-40 disabled:cursor-not-allowed transition">Explain</button>
+      </div>
+    </div>
+  </div>
+</aside>
 
 <!-- ============================ MODALS ============================ -->
 
@@ -253,19 +296,31 @@
   <div class="w-[min(94vw,620px)] rounded-2xl bg-ink-900 ring-1 ring-white/10 shadow-2xl overflow-hidden">
     <div class="px-5 py-4 border-b border-white/5 flex items-center justify-between">
       <div>
-        <h2 class="text-[15px] font-semibold text-slate-100">Import ManageBac feed</h2>
-        <p class="text-[12px] text-haze-500 mt-0.5">Paste an export, or choose a <code class="text-atlas-300/80">.json</code> file.</p>
+        <h2 class="text-[15px] font-semibold text-slate-100">Import files</h2>
+        <p class="text-[12px] text-haze-500 mt-0.5">Any file. Spreadsheets and feeds become assignments; photos, PDFs and notes go to the assistant.</p>
       </div>
       <button type="button" data-close class="h-7 w-7 rounded-md grid place-items-center text-haze-500 hover:text-slate-200 hover:bg-white/5">&#10005;</button>
     </div>
     <div class="px-5 py-4 space-y-3">
-      <div class="flex flex-wrap items-center gap-2">
-        <button data-act="pick-file" class="h-8 px-3 rounded-lg bg-ink-800 ring-1 ring-white/10 text-[12.5px] text-haze-200 hover:ring-white/20 transition">Choose file…</button>
-        <button data-act="load-sample" class="h-8 px-3 rounded-lg bg-ink-800 ring-1 ring-white/10 text-[12.5px] text-haze-200 hover:ring-white/20 transition">Load sample shape</button>
-        <input type="file" id="fileInput" accept=".json,application/json" class="hidden" />
+
+      <div id="dropZone" class="rounded-xl border border-dashed border-white/[0.10] hover:border-atlas-500/40 transition p-6 text-center cursor-pointer" data-act="pick-file">
+        <svg viewBox="0 0 24 24" class="h-7 w-7 mx-auto text-haze-500 mb-2" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M4 16v2.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V16"/></svg>
+        <p class="text-[13px] text-slate-200">Drop files here, or <span class="text-atlas-300">browse</span></p>
+        <p class="text-[11.5px] text-haze-500 mt-1">JSON · CSV · TSV · PDF · PNG · JPG · TXT · MD — up to 20 MB each</p>
+        <input type="file" id="fileInput" multiple accept="*/*" class="hidden" />
       </div>
-      <textarea id="importText" rows="12" spellcheck="false" placeholder='[{"id":"mb_1001","title":"...","class":{"name":"Biology HL"},"due_at":"2026-08-22T23:59:00Z"}]'
-        class="atlas-input font-mono text-[12px] leading-relaxed resize-none"></textarea>
+
+      <div id="importFiles" class="space-y-1.5 empty:hidden"></div>
+
+      <details id="pasteBlock" class="rounded-xl bg-ink-850 ring-1 ring-white/[0.06] overflow-hidden">
+        <summary class="px-3.5 py-2.5 text-[12.5px] text-haze-300 cursor-pointer select-none hover:text-slate-100">Or paste a feed as JSON</summary>
+        <div class="px-3.5 pb-3.5 space-y-2">
+          <button data-act="load-sample" class="h-7 px-2.5 rounded-lg bg-ink-800 ring-1 ring-white/10 text-[12px] text-haze-200 hover:ring-white/20 transition">Load sample shape</button>
+          <textarea id="importText" rows="9" spellcheck="false" placeholder='[{"id":"mb_1001","title":"...","class":{"name":"Biology HL"},"due_at":"2026-08-22T23:59:00Z"}]'
+            class="atlas-input font-mono text-[12px] leading-relaxed resize-none"></textarea>
+        </div>
+      </details>
+
       <p id="importMsg" class="text-[12px] text-haze-500 min-h-[18px]"></p>
     </div>
     <div class="px-5 py-3.5 border-t border-white/5 flex justify-end gap-2">
@@ -295,6 +350,8 @@
 <script src="js/store.js"></script>
 <script src="js/auth.js"></script>
 <script src="js/managebac.js"></script>
+<script src="js/files.js"></script>
+<script src="js/assistant.js"></script>
 <script src="js/notify.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/app.js"></script>

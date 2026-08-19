@@ -323,7 +323,7 @@
           return '<span class="h-5 px-1.5 rounded-md bg-white/[0.04] ring-1 ring-white/[0.06] text-[10.5px] text-haze-400 grid place-items-center">' + esc(l) + '</span>';
         }).join('') + '</div>' : '';
 
-    return '<article data-id="' + a.id + '" class="assignment-card ' + (done ? 'card-done ' : '') +
+    return '<article data-id="' + a.id + '" class="assignment-card group ' + (done ? 'card-done ' : '') +
       'relative rounded-xl bg-ink-900 ring-1 ' + u.ring + ' ' + u.glow + ' shadow-card p-3.5 flex gap-3 hover:ring-white/15">' +
       '<button data-act="toggle" data-id="' + a.id + '" class="tick mt-0.5" role="checkbox" aria-checked="' + done + '" aria-label="Mark complete">' + ICONS.check + '</button>' +
       '<div class="min-w-0 flex-1 cursor-pointer" data-act="open" data-id="' + a.id + '">' +
@@ -340,6 +340,10 @@
       '</div>' +
       '<div class="shrink-0 flex flex-col items-end justify-between gap-1">' +
         '<span class="text-[12px] font-medium ' + u.text + ' whitespace-nowrap">' + esc(rel) + '</span>' +
+        '<button data-act="explain-assignment" data-id="' + a.id + '" title="Explain this task in plain words" ' +
+          'class="h-6 w-6 rounded-md grid place-items-center text-haze-600 hover:text-atlas-300 hover:bg-white/5 opacity-0 group-hover:opacity-100 focus:opacity-100 transition">' +
+          '<svg viewBox="0 0 24 24" class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5 13.7 8.3 18.5 10 13.7 11.7 12 16.5 10.3 11.7 5.5 10 10.3 8.3z"/></svg>' +
+        '</button>' +
         /* Only spell out the clock time when the relative phrase left it out. */
         (rel.indexOf(clock) === -1
           ? '<span class="text-[11px] text-haze-600 tabular-nums whitespace-nowrap">' + esc(clock) + '</span>'
@@ -571,6 +575,215 @@
       '</section>';
   }
 
+  /* ----------------------------------------------------------- assistant */
+
+  /**
+   * A deliberately small markdown subset — headings, lists, bold, code, rules.
+   * Everything is escaped first, so a model reply can never inject markup.
+   */
+  function renderMarkdown(md) {
+    var lines = String(md || '').split('\n');
+    var html = '';
+    var listType = null;
+
+    function closeList() {
+      if (listType) { html += listType === 'ul' ? '</ul>' : '</ol>'; listType = null; }
+    }
+
+    function inline(s) {
+      return esc(s)
+        .replace(/\*\*([^*]+)\*\*/g, '<strong class="font-semibold text-slate-100">$1</strong>')
+        .replace(/(^|[\s(])\*([^*\n]+)\*/g, '$1<em class="text-haze-300">$2</em>')
+        .replace(/`([^`]+)`/g, '<code class="px-1 py-0.5 rounded bg-white/[0.07] text-atlas-200 text-[11.5px]">$1</code>');
+    }
+
+    lines.forEach(function (raw) {
+      var line = raw.replace(/\s+$/, '');
+
+      if (!line.trim()) { closeList(); return; }
+
+      if (/^---+$/.test(line.trim())) { closeList(); html += '<hr class="border-white/[0.07] my-3" />'; return; }
+
+      var h = /^(#{1,4})\s+(.*)$/.exec(line);
+      if (h) {
+        closeList();
+        var level = h[1].length;
+        var cls = level <= 2
+          ? 'text-[12px] font-semibold uppercase tracking-[0.11em] text-atlas-300 mt-4 first:mt-0 mb-1.5'
+          : 'text-[13px] font-semibold text-slate-100 mt-3 mb-1';
+        html += '<h3 class="' + cls + '">' + inline(h[2]) + '</h3>';
+        return;
+      }
+
+      var ol = /^\s*(\d+)[.)]\s+(.*)$/.exec(line);
+      if (ol) {
+        if (listType !== 'ol') { closeList(); html += '<ol class="list-decimal pl-5 space-y-1 marker:text-haze-600">'; listType = 'ol'; }
+        html += '<li class="pl-0.5">' + inline(ol[2]) + '</li>';
+        return;
+      }
+
+      var ul = /^\s*[-*•]\s+(.*)$/.exec(line);
+      if (ul) {
+        if (listType !== 'ul') { closeList(); html += '<ul class="list-disc pl-5 space-y-1 marker:text-atlas-500/60">'; listType = 'ul'; }
+        html += '<li class="pl-0.5">' + inline(ul[1]) + '</li>';
+        return;
+      }
+
+      closeList();
+      html += '<p class="leading-relaxed">' + inline(line) + '</p>';
+    });
+
+    closeList();
+    return html;
+  }
+
+  var KIND_ICON = {
+    image: '<svg viewBox="0 0 24 24" class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="m4 17 5-5 4 4 3-2 4 4"/></svg>',
+    pdf: '<svg viewBox="0 0 24 24" class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M14 3v5h5"/><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/></svg>',
+    feed: '<svg viewBox="0 0 24 24" class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 6h16M4 12h16M4 18h10"/></svg>',
+    table: '<svg viewBox="0 0 24 24" class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 4v16"/></svg>',
+    text: '<svg viewBox="0 0 24 24" class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6 4h12M6 9h12M6 14h8"/></svg>',
+    other: '<svg viewBox="0 0 24 24" class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M14 3v5h5"/><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/></svg>'
+  };
+
+  var KIND_LABEL = {
+    feed: 'ManageBac feed', table: 'Spreadsheet', pdf: 'PDF',
+    image: 'Image', text: 'Text', other: 'File'
+  };
+
+  function fileChip(file, index) {
+    return '<span class="inline-flex items-center gap-1.5 h-7 pl-2 pr-1 rounded-lg bg-ink-800 ring-1 ring-white/10 text-[11.5px] text-haze-200 max-w-[200px]">' +
+      '<span class="text-haze-500 shrink-0">' + (KIND_ICON[file.kind] || KIND_ICON.other) + '</span>' +
+      '<span class="truncate">' + esc(file.name) + '</span>' +
+      '<button data-act="assistant-drop-file" data-index="' + index + '" class="h-5 w-5 shrink-0 rounded grid place-items-center text-haze-600 hover:text-rose-300 hover:bg-white/5">&#10005;</button>' +
+    '</span>';
+  }
+
+  function renderAssistantFiles(files) {
+    var host = $('#assistantFiles');
+    if (!host) return;
+    host.innerHTML = files.map(fileChip).join('');
+  }
+
+  function renderAssistantEngine() {
+    var el = $('#assistantEngine');
+    if (!el) return;
+    var s = global.Atlas.assistant.state;
+    if (s.available === null) { el.textContent = 'Checking…'; el.className = 'text-[11px] text-haze-500 truncate'; return; }
+    if (s.available) {
+      el.textContent = 'Claude · ' + (s.model || 'connected');
+      el.className = 'text-[11px] text-atlas-300/80 truncate';
+    } else {
+      el.textContent = 'Offline mode — ' + (s.reason || 'no server');
+      el.className = 'text-[11px] text-amber-300/80 truncate';
+    }
+  }
+
+  var ASSISTANT_EMPTY =
+    '<div class="text-center py-10 px-2">' +
+      '<div class="mx-auto h-11 w-11 rounded-xl bg-ink-850 ring-1 ring-white/[0.06] grid place-items-center text-atlas-400/70 mb-3">' +
+        '<svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5 13.7 8.3 18.5 10 13.7 11.7 12 16.5 10.3 11.7 5.5 10 10.3 8.3z"/></svg>' +
+      '</div>' +
+      '<h3 class="text-[13.5px] font-medium text-slate-200">Stuck on the wording?</h3>' +
+      '<p class="text-[12.5px] text-haze-500 mt-1.5 leading-relaxed max-w-[280px] mx-auto">Paste a question, or attach a photo of the worksheet. You get it back in plain words, with the command terms decoded and a place to start.</p>' +
+      '<p class="text-[11.5px] text-haze-600 mt-3 leading-relaxed max-w-[280px] mx-auto">It explains the question — it will not hand you the answer.</p>' +
+    '</div>';
+
+  function bubble(entry) {
+    if (entry.role === 'user') {
+      var atts = (entry.attachments || []).length
+        ? '<div class="mt-1.5 flex flex-wrap gap-1">' + entry.attachments.map(function (a) {
+            return '<span class="inline-flex items-center gap-1 h-5 px-1.5 rounded bg-white/[0.06] text-[10.5px] text-haze-300">' + esc(a.name) + '</span>';
+          }).join('') + '</div>' : '';
+      return '<div class="flex justify-end"><div class="max-w-[85%] rounded-2xl rounded-br-md bg-atlas-500/12 ring-1 ring-atlas-500/20 px-3.5 py-2.5">' +
+        '<p class="text-[13px] text-slate-100 whitespace-pre-wrap leading-relaxed">' + esc(entry.content) + '</p>' + atts +
+      '</div></div>';
+    }
+
+    var badge = entry.engine === 'offline'
+      ? '<span class="inline-flex items-center h-4 px-1.5 rounded bg-amber-500/12 text-amber-300/90 text-[10px] font-medium uppercase tracking-wide ring-1 ring-amber-500/20">Offline</span>'
+      : '';
+
+    return '<div class="space-y-1.5">' + (badge ? '<div>' + badge + '</div>' : '') +
+      '<div class="rounded-2xl rounded-bl-md bg-ink-850 ring-1 ring-white/[0.06] px-3.5 py-3 text-[13px] text-haze-200 space-y-1.5">' +
+        renderMarkdown(entry.content) +
+      '</div>' +
+    '</div>';
+  }
+
+  function renderAssistantThread() {
+    var host = $('#assistantThread');
+    if (!host) return;
+    var thread = global.Atlas.assistant.state.thread;
+    host.innerHTML = thread.length ? thread.map(bubble).join('') : ASSISTANT_EMPTY;
+    host.scrollTop = host.scrollHeight;
+  }
+
+  /** Append a live bubble that the stream writes into. Returns its node. */
+  function beginAssistantReply() {
+    var host = $('#assistantThread');
+    if (!host) return null;
+    if (!host.querySelector('.space-y-1\\.5, .flex')) host.innerHTML = '';
+
+    var wrap = document.createElement('div');
+    wrap.className = 'space-y-1.5';
+    wrap.innerHTML = '<div class="rounded-2xl rounded-bl-md bg-ink-850 ring-1 ring-white/[0.06] px-3.5 py-3 text-[13px] text-haze-200 space-y-1.5">' +
+      '<div class="assistant-live"><span class="inline-flex gap-1 items-center text-haze-500 text-[12px]">' +
+        '<span class="h-1.5 w-1.5 rounded-full bg-atlas-400 animate-pulse"></span>Reading the question…</span></div>' +
+    '</div>';
+    host.appendChild(wrap);
+    host.scrollTop = host.scrollHeight;
+    return wrap.querySelector('.assistant-live');
+  }
+
+  function updateAssistantReply(node, markdown) {
+    if (!node) return;
+    node.innerHTML = renderMarkdown(markdown);
+    var host = $('#assistantThread');
+    if (host) host.scrollTop = host.scrollHeight;
+  }
+
+  function setAssistantOpen(open) {
+    var panel = $('#assistantPanel');
+    var scrim = $('#assistantScrim');
+    if (!panel) return;
+    panel.classList.toggle('translate-x-full', !open);
+    scrim.classList.toggle('opacity-0', !open);
+    scrim.classList.toggle('pointer-events-none', !open);
+    var toggle = $('#assistantToggle');
+    if (toggle) {
+      toggle.className = 'h-9 px-3 rounded-lg ring-1 inline-flex items-center gap-2 text-[13px] transition ' +
+        (open ? 'bg-atlas-500/15 ring-atlas-500/35 text-atlas-200' : 'bg-ink-850 ring-white/[0.06] text-haze-300 hover:ring-atlas-500/35 hover:text-atlas-200');
+    }
+    if (open) setTimeout(function () { var i = $('#assistantInput'); if (i) i.focus(); }, 320);
+  }
+
+  /* ------------------------------------------------------- import files */
+
+  function renderImportFiles(entries) {
+    var host = $('#importFiles');
+    if (!host) return;
+
+    host.innerHTML = entries.map(function (e, i) {
+      if (e.error) {
+        return '<div class="flex items-center gap-2.5 rounded-lg bg-rose-500/[0.07] ring-1 ring-rose-500/20 px-3 py-2">' +
+          '<span class="min-w-0 flex-1"><span class="block text-[12.5px] text-rose-200 truncate">' + esc(e.name) + '</span>' +
+          '<span class="block text-[11.5px] text-rose-300/70">' + esc(e.error) + '</span></span></div>';
+      }
+      var action = (e.kind === 'feed' || e.kind === 'table')
+        ? '<button data-act="import-file-assignments" data-index="' + i + '" class="shrink-0 h-7 px-2.5 rounded-lg bg-atlas-500/12 text-atlas-300 ring-1 ring-atlas-500/25 hover:bg-atlas-500/20 text-[11.5px] font-medium transition">Add assignments</button>'
+        : '<button data-act="import-file-assistant" data-index="' + i + '" class="shrink-0 h-7 px-2.5 rounded-lg bg-ink-800 ring-1 ring-white/10 text-haze-200 hover:ring-white/20 text-[11.5px] transition">Ask assistant</button>';
+
+      return '<div class="flex items-center gap-2.5 rounded-lg bg-ink-850 ring-1 ring-white/[0.06] px-3 py-2">' +
+        '<span class="text-haze-500 shrink-0">' + (KIND_ICON[e.kind] || KIND_ICON.other) + '</span>' +
+        '<span class="min-w-0 flex-1">' +
+          '<span class="block text-[12.5px] text-slate-200 truncate">' + esc(e.name) + '</span>' +
+          '<span class="block text-[11.5px] text-haze-500">' + esc(KIND_LABEL[e.kind] || 'File') + ' · ' + esc(global.Atlas.files.humanSize(e.size)) + '</span>' +
+        '</span>' + action +
+      '</div>';
+    }).join('');
+  }
+
   /* --------------------------------------------------------------- toast */
 
   function toast(message, tone) {
@@ -617,6 +830,14 @@
     renderAccountChip: renderAccountChip,
     renderAccountDialog: renderAccountDialog,
     accountMessage: accountMessage,
+    renderMarkdown: renderMarkdown,
+    renderAssistantThread: renderAssistantThread,
+    renderAssistantFiles: renderAssistantFiles,
+    renderAssistantEngine: renderAssistantEngine,
+    beginAssistantReply: beginAssistantReply,
+    updateAssistantReply: updateAssistantReply,
+    setAssistantOpen: setAssistantOpen,
+    renderImportFiles: renderImportFiles,
     renderNotifStatus: renderNotifStatus,
     renderSyncStatus: renderSyncStatus,
     toast: toast

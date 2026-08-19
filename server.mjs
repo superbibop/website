@@ -11,6 +11,7 @@ import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import { extname, join, normalize, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { explain, status as assistantStatus } from './assistant-route.mjs';
 
 const ROOT = fileURLToPath(new URL('.', import.meta.url));
 const PORT = Number(process.argv[2] || process.env.PORT || 5173);
@@ -35,6 +36,18 @@ const server = createServer(async (req, res) => {
     const url = new URL(req.url, `http://${req.headers.host}`);
     let rel = decodeURIComponent(url.pathname);
     if (rel === '/' || rel === '') rel = '/index.html';
+
+    /* ---- assistant API ---- */
+    if (rel === '/api/assistant/status') {
+      const body = JSON.stringify(await assistantStatus());
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(body);
+      return;
+    }
+    if (rel === '/api/assistant') {
+      if (req.method !== 'POST') { res.writeHead(405).end('Method Not Allowed'); return; }
+      await explain(req, res);
+      return;
+    }
 
     /* Refuse anything that tries to climb out of the project directory. */
     const filePath = join(ROOT, normalize(rel).replace(/^(\.\.[/\\])+/, ''));

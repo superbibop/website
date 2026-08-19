@@ -6,6 +6,8 @@
   var store = global.Atlas.store;
   var auth = global.Atlas.auth;
   var mb = global.Atlas.managebac;
+  var files = global.Atlas.files;
+  var assistant = global.Atlas.assistant;
   var notify = global.Atlas.notify;
   var ui = global.Atlas.ui;
 
@@ -158,26 +160,51 @@
 
   /* -------------------------------------------------------------- import */
 
+  var importedFiles = [];         // files read but not yet acted on
+
+  function importMessage(text, tone) {
+    var tones = { error: 'text-rose-300', warn: 'text-amber-300', ok: 'text-atlas-300', info: 'text-haze-400' };
+    var msg = $('#importMsg');
+    msg.textContent = text;
+    msg.className = 'text-[12px] min-h-[18px] ' + (tones[tone] || 'text-haze-500');
+  }
+
   function openImport() {
-    $('#importMsg').textContent = '';
-    $('#importMsg').className = 'text-[12px] text-haze-500 min-h-[18px]';
+    importMessage('');
     openDialog($('#dlgImport'));
   }
 
+  /** Read whatever was dropped or chosen, and offer the right action for each. */
+  function acceptFiles(fileList) {
+    if (!fileList || !fileList.length) return;
+    importMessage('Reading ' + U.plural(fileList.length, 'file') + '…', 'info');
+
+    files.readAll(fileList).then(function (records) {
+      importedFiles = records;
+      ui.renderImportFiles(importedFiles);
+
+      var usable = records.filter(function (r) { return !r.error; });
+      var feeds = usable.filter(function (r) { return r.kind === 'feed' || r.kind === 'table'; });
+
+      importMessage(
+        !usable.length ? 'None of those could be read.'
+          : feeds.length === usable.length ? 'Ready to turn into assignments.'
+          : feeds.length ? 'Feeds can become assignments; the rest can go to the assistant.'
+          : 'These are not assignment feeds — send them to the assistant to have the questions explained.',
+        usable.length ? 'info' : 'error'
+      );
+    });
+  }
+
   function doImport() {
-    var msg = $('#importMsg');
     var raw = $('#importText').value.trim();
-    if (!raw) {
-      msg.textContent = 'Paste a feed, or choose a .json file.';
-      msg.className = 'text-[12px] text-amber-300 min-h-[18px]';
-      return;
-    }
+    if (!raw) { importMessage('Paste a feed, or choose a file above.', 'warn'); return; }
+
     var payload;
     try {
       payload = JSON.parse(raw);
     } catch (e) {
-      msg.textContent = 'That is not valid JSON: ' + e.message;
-      msg.className = 'text-[12px] text-rose-300 min-h-[18px]';
+      importMessage('That is not valid JSON: ' + e.message, 'error');
       return;
     }
     try {
@@ -189,19 +216,75 @@
       notify.announceSync(result);
       afterDataChange();
     } catch (e) {
-      msg.textContent = e.message;
-      msg.className = 'text-[12px] text-rose-300 min-h-[18px]';
+      importMessage(e.message, 'error');
     }
   }
 
-  function readFile(file) {
-    var reader = new FileReader();
-    reader.onload = function () {
-      $('#importText').value = String(reader.result);
-      $('#importMsg').textContent = 'Loaded ' + file.name + '. Review it, then press Import.';
-      $('#importMsg').className = 'text-[12px] text-haze-400 min-h-[18px]';
-    };
-    reader.readAsText(file);
+  /* ----------------------------------------------------------- assistant */
+
+  var assistantFiles = [];        // staged attachments for the next question
+  var assistantOpen = false;
+
+  function openAssistant(prefill) {
+    assistantOpen = true;
+    ui.setAssistantOpen(true);
+    ui.renderAssistantThread();
+    ui.renderAssistantEngine();
+    if (prefill) {
+      var input = $('#assistantInput');
+      input.value = prefill;
+      input.dispatchEvent(new Event('input'));
+    }
+  }
+
+  function closeAssistant() {
+    assistantOpen = false;
+    ui.setAssistantOpen(false);
+  }
+
+  function stageFiles(records) {
+    records.forEach(function (r) {
+      if (r.error) { ui.toast(r.error, 'error'); return; }
+      if (assistantFiles.length >= 5) { ui.toast('Five attachments at a time is the limit.', 'warn'); return; }
+      assistantFiles.push(r);
+    });
+    ui.renderAssistantFiles(assistantFiles);
+    updateSendState();
+  }
+
+  function updateSendState() {
+    var btn = $('#assistantSend');
+    if (!btn) return;
+    var hasInput = $('#assistantInput').value.trim() || assistantFiles.length;
+    btn.disabled = !hasInput || assistant.state.busy;
+  }
+
+  function sendToAssistant() {
+    var input = $('#assistantInput');
+    var question = input.value.trim();
+    if (!question && !assistantFiles.length) return;
+
+    var files = assistantFiles.slice();
+    assistantFiles = [];
+    input.value = '';
+    ui.renderAssistantFiles(assistantFiles);
+    ui.renderAssistantThread();
+    updateSendState();
+
+    var live = ui.beginAssistantReply();
+
+    assistant.ask({ question: question, attachments: files }, {
+      onDelta: function (chunk, full) { ui.updateAssistantReply(live, full); },
+      onDone: function (full, meta) {
+        ui.renderAssistantThread();
+        updateSendState();
+        if (meta.degradedFrom) ui.toast('Claude was unreachable — answered offline instead.', 'warn');
+      },
+      onError: function (err) {
+        ui.updateAssistantReply(live, '**Could not explain that.**\n\n' + err.message);
+        updateSendState();
+      }
+    });
   }
 
   /* ------------------------------------------------------------- actions */
@@ -350,6 +433,61 @@
       ctx.filter = 'upcoming';
       afterDataChange();
     },
+    /* -------------------------------------------------------- assistant */
+
+    'assistant': function () { if (assistantOpen) closeAssistant(); else openAssistant(); },
+    'close-assistant': closeAssistant,
+    'assistant-send': sendToAssistant,
+    'assistant-attach': function () { $('#assistantFileInput').click(); },
+    'assistant-drop-file': function (el) {
+      assistantFiles.splice(+el.getAttribute('data-index'), 1);
+      ui.renderAssistantFiles(assistantFiles);
+      updateSendState();
+    },
+    'clear-thread': function () {
+      assistant.clearThread();
+      assistantFiles = [];
+      ui.renderAssistantFiles(assistantFiles);
+      ui.renderAssistantThread();
+      updateSendState();
+    },
+    /* Ask about an assignment straight from its card. */
+    'explain-assignment': function (el) {
+      var a = store.byId(el.getAttribute('data-id'));
+      if (!a) return;
+      openAssistant([a.title, a.description].filter(Boolean).join('\n\n'));
+    },
+
+    /* ------------------------------------------------------ file import */
+
+    'import-file-assignments': function (el) {
+      var entry = importedFiles[+el.getAttribute('data-index')];
+      if (!entry) return;
+      try {
+        var payload = entry.kind === 'table'
+          ? files.tableToFeed(entry.text)
+          : JSON.parse(entry.text);
+        var result = mb.importPayload(payload);
+        closeDialog($('#dlgImport'));
+        importedFiles = [];
+        ui.renderImportFiles(importedFiles);
+        ui.toast('Imported ' + U.plural(result.added.length, 'assignment') +
+          (result.updated.length ? ', updated ' + result.updated.length : '') + ' from ' + entry.name, 'ok');
+        notify.announceSync(result);
+        afterDataChange();
+      } catch (err) {
+        importMessage(err.message, 'error');
+      }
+    },
+    'import-file-assistant': function (el) {
+      var entry = importedFiles[+el.getAttribute('data-index')];
+      if (!entry) return;
+      closeDialog($('#dlgImport'));
+      stageFiles([entry]);
+      openAssistant();
+      ui.toast('Attached ' + entry.name + ' — add a question or just press Explain.', 'info');
+    },
+
     'cal-prev': function () { shiftMonth(-1); },
     'cal-next': function () { shiftMonth(1); },
     'cal-today': function () { ctx.calMonth = null; ctx.selectedDay = U.dateKey(new Date()); render(); },
@@ -399,8 +537,35 @@
     }, 140));
 
     $('#fileInput').addEventListener('change', function (e) {
-      if (e.target.files && e.target.files[0]) readFile(e.target.files[0]);
+      acceptFiles(e.target.files);
       e.target.value = '';
+    });
+
+    $('#assistantFileInput').addEventListener('change', function (e) {
+      files.readAll(e.target.files).then(stageFiles);
+      e.target.value = '';
+    });
+
+    $('#assistantInput').addEventListener('input', updateSendState);
+    $('#assistantInput').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); sendToAssistant(); }
+    });
+
+    /* Paste a screenshot straight into the assistant. */
+    $('#assistantInput').addEventListener('paste', function (e) {
+      var items = Array.prototype.slice.call((e.clipboardData || {}).items || []);
+      var imgs = items.filter(function (i) { return i.kind === 'file'; })
+        .map(function (i) { return i.getAsFile(); }).filter(Boolean);
+      if (imgs.length) { e.preventDefault(); files.readAll(imgs).then(stageFiles); }
+    });
+
+    /* Drop files on the assistant panel to attach them. */
+    var panel = $('#assistantPanel');
+    ['dragover', 'drop'].forEach(function (type) {
+      panel.addEventListener(type, function (e) {
+        e.preventDefault();
+        if (type === 'drop' && e.dataTransfer.files.length) files.readAll(e.dataTransfer.files).then(stageFiles);
+      });
     });
 
     $('#settingsBody').addEventListener('change', function (e) {
@@ -412,23 +577,26 @@
       notify.pushSnapshotToWorker();
     });
 
-    /* Drag a ManageBac export anywhere onto the import dialog. */
+    /* Drop anything onto the import dialog. */
     var importDlg = $('#dlgImport');
     ['dragover', 'drop'].forEach(function (type) {
       importDlg.addEventListener(type, function (e) {
         e.preventDefault();
-        if (type === 'drop' && e.dataTransfer.files[0]) readFile(e.dataTransfer.files[0]);
+        var zone = $('#dropZone');
+        if (zone) zone.classList.toggle('border-atlas-500/50', type === 'dragover');
+        if (type === 'drop' && e.dataTransfer.files.length) acceptFiles(e.dataTransfer.files);
       });
     });
 
     document.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape') return;
+      if (e.key === 'Escape') { if (assistantOpen) closeAssistant(); return; }
       var typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName);
       if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
 
       if (e.key === 'n') { e.preventDefault(); openEditor(null); }
       else if (e.key === '/') { e.preventDefault(); $('#search').focus(); }
       else if (e.key === 's') { e.preventDefault(); runSync(true); }
+      else if (e.key === 'a') { e.preventDefault(); actions.assistant(); }
       else if (e.key === 'c') { e.preventDefault(); ctx.view = ctx.view === 'calendar' ? 'list' : 'calendar'; store.setSettings({ view: ctx.view }); render(); }
     });
 
@@ -458,8 +626,14 @@
     ctx.filter = store.state.settings.filter || 'upcoming';
     ctx.view = store.state.settings.view || 'list';
 
+    assistant.loadThread();
+
     wire();
     render();
+
+    ui.renderAssistantThread();
+    updateSendState();
+    assistant.checkStatus().then(ui.renderAssistantEngine);
 
     notify.registerServiceWorker().then(function () {
       notify.startScheduler();

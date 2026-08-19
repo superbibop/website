@@ -189,7 +189,11 @@ test('the parser maps ManageBac field names onto Atlas assignments', () => {
   assert.equal(parsed[0].description, '1,200 words', 'HTML is stripped');
   assert.equal(parsed[1].externalId, 'mb_8', 'alternate id field is honoured');
   assert.equal(parsed[1].course, 'Spanish B SL', 'a plain-string class is accepted');
-  assert.match(parsed[1].dueAt, /^2026-09-03T/, 'a date-only field becomes end of day');
+  const dateOnly = new Date(parsed[1].dueAt);
+  assert.equal(dateOnly.getFullYear(), 2026);
+  assert.equal(dateOnly.getMonth(), 8);
+  assert.equal(dateOnly.getDate(), 3, 'a date-only field must stay on its own local day');
+  assert.equal(dateOnly.getHours(), 23, 'and land at end of day, not midnight UTC');
 });
 
 test('re-syncing the same feed adds nothing the second time', () => {

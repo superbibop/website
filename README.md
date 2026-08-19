@@ -1,11 +1,11 @@
 # Atlas
 
 A homework tracker for students: one dashboard of everything due, a ManageBac
-sync that highlights what is new, and native OS notifications before each
-deadline.
+sync that highlights what is new, native OS notifications before each deadline,
+and an assistant that turns a confusing exam question into plain English.
 
-HTML + Tailwind CSS + vanilla JavaScript. No build step, no dependencies,
-no framework. Identical in Chrome and Edge.
+HTML + Tailwind CSS + vanilla JavaScript. No build step, no framework.
+Identical in Chrome and Edge.
 
 ---
 
@@ -16,6 +16,20 @@ node server.mjs
 ```
 
 Then open <http://localhost:5173>.
+
+The dashboard needs no `npm install`. Only the Claude-backed assistant does:
+
+```bash
+npm install
+```
+
+…and the API key goes in the **server's** environment, never in the browser:
+
+```bash
+$env:ANTHROPIC_API_KEY = "sk-ant-..."
+```
+
+Without a key the assistant still runs, using its built-in offline explainer.
 
 Use the server rather than double-clicking `index.html`. Browsers only expose
 the Notifications API and service workers on a **secure context** — `https` or
@@ -38,10 +52,14 @@ node test/notify.test.mjs
 | `assets/styles.css` | The few things utilities can't express: scrollbars, dialogs, form controls |
 | `js/util.js` | Dates, urgency classification, formatting |
 | `js/store.js` | State, `localStorage` persistence, filters, counts |
-| `js/managebac.js` | The ManageBac adapter — parser, merge, mock transport |
+| `js/auth.js` | Account state, sign-in, connector contract |
+| `js/managebac.js` | The ManageBac adapter — parser, merge, mock + live transports |
+| `js/files.js` | File classification, reading, CSV parsing, attachment store |
+| `js/assistant.js` | Assistant client, SSE streaming, offline explainer |
 | `js/notify.js` | Permission, OS notifications, the reminder scheduler |
 | `js/ui.js` | All rendering |
 | `js/app.js` | Boot and event delegation |
+| `assistant-route.mjs` | Server side of the assistant — where the API key lives |
 | `sw.js` | Offline shell, background deadline checks, notification clicks |
 | `data/managebac-feed.json` | The mock feed |
 | `test/notify.test.mjs` | Headless tests for the scheduler and parser |
@@ -61,7 +79,7 @@ Two views, toggled in the toolbar (or with `c`):
 Filters (Upcoming / Today / This week / Overdue / Completed / All), live search,
 and a stat row across the top. Everything persists to `localStorage`.
 
-Keyboard: `n` new · `/` search · `s` sync · `c` toggle view.
+Keyboard: `n` new · `/` search · `s` sync · `c` toggle view · `a` assistant.
 
 ### 2. ManageBac integration
 
@@ -146,10 +164,85 @@ no server behind it yet.
 
 ---
 
+### 4. Accounts
+
+The sidebar chip opens a sign-in with two modes:
+
+- **Demo** — a local profile, no credentials, backed by the mock feed. One click.
+- **School account** — sign-in through a connector *you* host. ManageBac
+  publishes no public student auth endpoint, so a browser cannot sign a student
+  in directly; a small server-side connector is the only honest way. It needs
+  two routes:
+
+  ```
+  POST {base}/session      { school, email, password } -> { token, displayName? }
+  GET  {base}/assignments   Authorization: Bearer <token> -> ManageBac records
+  ```
+
+Credential handling is deliberate: the password is never written to
+`localStorage`, never logged, and is cleared from the form as the request goes
+out; the returned token lives in `sessionStorage` so it dies with the browser
+session; and **password entry stays disabled until a connector URL is set**, so
+a real school password can't be typed into a field with nowhere to send it.
+Signing out keeps your assignments.
+
+### 5. Files — any type
+
+The Import dialog takes anything you drop on it and routes by what it is:
+
+| You drop | Atlas does |
+| --- | --- |
+| `.json` | Parses it as a ManageBac feed → assignments |
+| `.csv` `.tsv` | Maps the columns to a feed, then the same parser → assignments |
+| `.pdf` | Sends it to the assistant as a document |
+| `.png` `.jpg` `.jpeg` `.webp` `.gif` | Sends it to the assistant as an image |
+| `.txt` `.md` | Sends it to the assistant as text |
+| anything else | Stored as an attachment, not parsed |
+
+The CSV path is forgiving about headers — `Title`/`Assignment`/`Task`,
+`Class`/`Course`/`Subject`, `Due Date`/`Deadline`, plus optional `Type` and
+`Points`. A due date with no time is read as **end of that day, locally** (not
+midnight UTC, which would mark the work overdue during the school day).
+
+Attachments go to IndexedDB, not `localStorage` — a photo of a worksheet is
+megabytes and would blow the quota instantly.
+
+### 6. The assistant
+
+Press **Explain** (or `a`). Paste the question you don't understand, attach a
+photo of the worksheet, or paste a screenshot straight into the box. You get
+back four sections:
+
+- **In plain words** — the question restated in everyday English
+- **What it's actually asking for** — the concrete deliverables
+- **Key words decoded** — command terms glossed (*evaluate*, *justify*,
+  *to what extent*, *derive*…), which is where most of the confusion lives
+- **How to approach it** — the order of work
+
+**It explains the question; it does not answer it.** That's enforced in the
+system prompt, not just suggested.
+
+Two engines. With `ANTHROPIC_API_KEY` set on the server, it streams a real
+explanation from Claude (`claude-opus-5`, adaptive thinking, medium effort) and
+can read images and PDFs. The browser never sees the key — it POSTs to
+`/api/assistant` and the server holds the credential. With no key, Atlas falls
+back to its own offline rewriter: it ranks and decodes the command terms, splits
+multi-part questions, and lays out an order of work. Weaker, but useful, and it
+works with no network at all. Replies are labelled so you always know which one
+answered.
+
+---
+
 ## Data and privacy
 
-Everything lives in `localStorage` in your browser. No account, no backend, no
-telemetry. **Reset all data** in Settings clears it.
+Assignments, settings and the assistant thread live in `localStorage`;
+attachments live in IndexedDB. All of it stays in your browser. No telemetry.
+**Reset all data** in Settings clears it.
+
+The one thing that leaves your machine is an assistant question: the text and
+any file you attach go to your own server, which forwards them to the Anthropic
+API. Nothing is sent unless you press **Explain**. In offline mode nothing
+leaves the browser at all.
 
 ## Built to extend
 
