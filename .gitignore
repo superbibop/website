@@ -1,0 +1,17 @@
+# OS / editor
+Thumbs.db
+Desktop.ini
+.DS_Store
+*.swp
+.vscode/
+.idea/
+
+# Node (Atlas itself has no dependencies; this is for future tooling)
+node_modules/
+npm-debug.log*
+.env
+.env.local
+
+# Build output
+dist/
+build/

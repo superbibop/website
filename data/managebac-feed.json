@@ -1,0 +1,82 @@
+{
+  "_comment": "Mock ManageBac feed. Field names mirror ManageBac's assignment payloads so the parser in js/managebac.js is exercised for real. 'due_in_hours' is a mock-only convenience: the transport converts it to an absolute 'due_at' at fetch time so the demo data is always relative to now. A real feed would carry 'due_at' directly.",
+  "meta": { "source": "mock", "version": 1 },
+  "assignments": [
+    {
+      "id": "mb_2201",
+      "title": "Cell respiration lab report",
+      "class": { "id": "c_bio", "name": "Biology HL", "code": "BIO-HL-1" },
+      "assignment_type": "Summative",
+      "due_in_hours": 20,
+      "max_points": 24,
+      "labels": ["IA", "Unit 3"],
+      "description": "Full write-up: hypothesis, method, data table, error analysis."
+    },
+    {
+      "id": "mb_2202",
+      "title": "Paper 1 practice — calculus",
+      "class": { "id": "c_math", "name": "Mathematics AA HL", "code": "MAA-HL-2" },
+      "assignment_type": "Formative",
+      "due_in_hours": 44,
+      "max_points": 40,
+      "labels": ["Paper 1"],
+      "description": "Questions 1-12, no calculator. Show all working."
+    },
+    {
+      "id": "mb_2203",
+      "title": "Read Chapters 9-11 + annotate",
+      "class": { "id": "c_eng", "name": "English A Literature", "code": "ENG-A-1" },
+      "assignment_type": "Reading",
+      "due_in_hours": 8,
+      "labels": ["Unit 2"],
+      "description": "Annotate for narrative voice and unreliable narration."
+    },
+    {
+      "id": "mb_2204",
+      "title": "TOK exhibition draft",
+      "class": { "id": "c_tok", "name": "Theory of Knowledge", "code": "TOK-1" },
+      "assignment_type": "Project",
+      "due_in_hours": 96,
+      "max_points": 10,
+      "labels": ["Exhibition"],
+      "description": "950 words, three objects, clear links to the IA prompt."
+    },
+    {
+      "id": "mb_2205",
+      "title": "Vocabulary quiz — Unit 5",
+      "class": { "id": "c_spa", "name": "Spanish B SL", "code": "SPA-B-1" },
+      "assignment_type": "Quiz",
+      "due_in_hours": 31,
+      "max_points": 20,
+      "labels": ["Unit 5"]
+    },
+    {
+      "id": "mb_2206",
+      "title": "Historical investigation: Section 1",
+      "class": { "id": "c_his", "name": "History HL", "code": "HIS-HL-1" },
+      "assignment_type": "Summative",
+      "due_in_hours": 140,
+      "max_points": 6,
+      "labels": ["IA"],
+      "description": "Identification and evaluation of sources, 500 words."
+    },
+    {
+      "id": "mb_2207",
+      "title": "Problem set 4 — electricity",
+      "class": { "id": "c_phy", "name": "Physics SL", "code": "PHY-SL-1" },
+      "assignment_type": "Formative",
+      "due_in_hours": -14,
+      "max_points": 15,
+      "labels": ["Unit 4"],
+      "description": "Kirchhoff loops, questions 1-9."
+    },
+    {
+      "id": "mb_2208",
+      "title": "CAS reflection — term 1",
+      "class": { "id": "c_cas", "name": "CAS", "code": "CAS-1" },
+      "assignment_type": "Assignment",
+      "due_in_hours": 200,
+      "labels": ["Reflection"]
+    }
+  ]
+}

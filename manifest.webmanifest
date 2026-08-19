@@ -1,0 +1,16 @@
+{
+  "name": "Atlas — Homework & Deadlines",
+  "short_name": "Atlas",
+  "description": "Track homework, sync assignments from ManageBac, and get native desktop notifications before every deadline.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#07090C",
+  "theme_color": "#07090C",
+  "orientation": "any",
+  "categories": ["education", "productivity"],
+  "icons": [
+    { "src": "assets/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "assets/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

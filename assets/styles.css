@@ -1,0 +1,90 @@
+/* Atlas — the handful of things Tailwind utilities can't express inline. */
+
+:root { color-scheme: dark; }
+
+body { -webkit-font-smoothing: antialiased; }
+
+/* ---------- Scrollbars ---------- */
+* { scrollbar-width: thin; scrollbar-color: #232B36 transparent; }
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: #1A202A; border: 3px solid transparent; background-clip: content-box; border-radius: 99px; }
+*::-webkit-scrollbar-thumb:hover { background: #2E3743; background-clip: content-box; }
+
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* ---------- Form controls ---------- */
+.atlas-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: #6B7788;
+  margin-bottom: 6px;
+}
+
+.atlas-input {
+  width: 100%;
+  background: #0F131A;
+  border: 0;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.07);
+  border-radius: 10px;
+  padding: 9px 12px;
+  font-size: 13.5px;
+  color: #e2e8f0;
+  outline: none;
+  transition: box-shadow .16s ease, background .16s ease;
+}
+.atlas-input::placeholder { color: #4E5866; }
+.atlas-input:focus { background: #141922; box-shadow: inset 0 0 0 1px rgba(95,211,188,0.45), 0 0 0 3px rgba(56,191,167,0.10); }
+select.atlas-input { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236B7788' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; background-size: 15px; padding-right: 32px; }
+
+/* Make the browser's native date/time pickers legible on a dark ground. */
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator { filter: invert(0.65); cursor: pointer; }
+input[type="search"]::-webkit-search-cancel-button { filter: invert(0.5); cursor: pointer; }
+
+/* ---------- Dialogs ---------- */
+.atlas-dialog { border: 0; padding: 0; background: transparent; color: inherit; max-width: none; max-height: none; }
+.atlas-dialog::backdrop { background: rgba(4,6,9,0.72); backdrop-filter: blur(4px); }
+.atlas-dialog[open] { animation: dlgIn .18s cubic-bezier(.2,.7,.3,1) both; }
+@keyframes dlgIn { from { opacity: 0; transform: translateY(8px) scale(.985); } to { opacity: 1; transform: none; } }
+
+/* ---------- Cards ---------- */
+.assignment-card { transition: box-shadow .18s ease, transform .18s ease, background .18s ease; }
+.assignment-card:hover { transform: translateY(-1px); }
+
+.card-done .card-title { text-decoration: line-through; text-decoration-color: rgba(148,163,184,.45); color: #64748b; }
+
+/* The checkbox that marks work complete. */
+.tick {
+  height: 20px; width: 20px; border-radius: 7px; flex: none;
+  box-shadow: inset 0 0 0 1.5px rgba(255,255,255,0.16);
+  display: grid; place-items: center;
+  transition: box-shadow .16s ease, background .16s ease;
+}
+.tick svg { opacity: 0; transform: scale(.7); transition: .16s ease; }
+.tick:hover { box-shadow: inset 0 0 0 1.5px rgba(95,211,188,0.6); }
+.tick[aria-checked="true"] { background: #38BFA7; box-shadow: inset 0 0 0 1.5px #38BFA7; }
+.tick[aria-checked="true"] svg { opacity: 1; transform: none; color: #07090C; }
+
+/* ---------- Sync spinner ---------- */
+.syncing [data-sync-icon] { animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---------- Toasts ---------- */
+.toast { animation: toastIn .24s cubic-bezier(.2,.7,.3,1) both; }
+.toast.leaving { animation: toastOut .2s ease forwards; }
+@keyframes toastIn { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: none; } }
+@keyframes toastOut { to { opacity: 0; transform: translateX(16px); } }
+
+/* ---------- Calendar ---------- */
+.cal-cell { min-height: 104px; }
+@media (max-width: 640px) { .cal-cell { min-height: 74px; } }
+
+/* Respect users who ask the OS to reduce motion. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
