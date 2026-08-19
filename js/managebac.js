@@ -179,6 +179,43 @@
     }
   };
 
+  /* ------------------------------------------------------- live transport */
+
+  /* Used once the student signs in through their own connector (see js/auth.js).
+     Identical contract to the mock: resolve with a raw ManageBac payload. */
+  var liveTransport = {
+    name: 'api',
+    fetch: function () {
+      var auth = global.Atlas.auth;
+      var base = auth.connectorBase();
+      if (!base) return Promise.reject(new Error('No connector configured.'));
+
+      return fetch(base + '/assignments', {
+        headers: { 'Authorization': 'Bearer ' + (auth.token() || ''), 'Accept': 'application/json' },
+        credentials: 'omit',
+        cache: 'no-store'
+      }).then(function (res) {
+        if (res.status === 401 || res.status === 403) throw new Error('Session expired — sign in to ManageBac again.');
+        if (!res.ok) throw new Error('The connector answered ' + res.status + '.');
+        return res.json();
+      }).catch(function (err) {
+        if (err instanceof TypeError) throw new Error('Could not reach the connector at ' + base + '.');
+        throw err;
+      });
+    }
+  };
+
+  /**
+   * Which transport a sync should use.
+   * `api.transport` is an explicit override for embedding Atlas elsewhere;
+   * otherwise the signed-in mode decides.
+   */
+  function resolveTransport() {
+    if (api.transport) return api.transport;
+    var auth = global.Atlas.auth;
+    return (auth && auth.mode() === 'live') ? liveTransport : mockTransport;
+  }
+
   /** Try the on-disk seed file; fall back silently when running from file://. */
   function loadSeedFile() {
     if (location.protocol === 'file:') return Promise.resolve(null);
@@ -233,7 +270,11 @@
 
   /** Full sync cycle: fetch -> parse -> merge -> stamp. */
   function sync() {
-    return Promise.resolve(api.transport.fetch()).then(function (payload) {
+    var auth = global.Atlas.auth;
+    if (auth && !auth.isConnected() && !api.transport) {
+      return Promise.reject(new Error('Connect a ManageBac account first.'));
+    }
+    return Promise.resolve(resolveTransport().fetch()).then(function (payload) {
       var parsed = parse(payload);
       var result = merge(parsed);
       store.state.lastSyncAt = new Date().toISOString();
@@ -267,8 +308,11 @@
   ];
 
   var api = {
-    transport: mockTransport,
+    /* null = let the signed-in mode choose. Set this to force a transport. */
+    transport: null,
     mockTransport: mockTransport,
+    liveTransport: liveTransport,
+    resolveTransport: resolveTransport,
     normalize: normalize,
     parse: parse,
     merge: merge,

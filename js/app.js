@@ -4,6 +4,7 @@
 
   var U = global.Atlas.util;
   var store = global.Atlas.store;
+  var auth = global.Atlas.auth;
   var mb = global.Atlas.managebac;
   var notify = global.Atlas.notify;
   var ui = global.Atlas.ui;
@@ -21,6 +22,7 @@
 
   var editingId = null;
   var syncing = false;
+  var accountMode = 'demo';       // which pane the sign-in dialog is showing
 
   function render() { ui.renderAll(ctx); }
 
@@ -94,6 +96,10 @@
 
   function runSync(interactive) {
     if (syncing) return Promise.resolve();
+    if (!auth.isConnected()) {
+      if (interactive) actions.account();
+      return Promise.resolve();
+    }
     syncing = true;
     document.body.classList.add('syncing');
 
@@ -131,6 +137,16 @@
         syncing = false;
         document.body.classList.remove('syncing');
       });
+  }
+
+  /** A sign-in just succeeded: close up, pull the feed, ask about alerts. */
+  function afterConnect(session) {
+    closeDialog($('#dlgAccount'));
+    render();
+    ui.toast('Connected as ' + session.displayName, 'ok');
+    /* Still inside the click that signed in, so the permission prompt is
+       allowed — and it now sits behind a deliberate action, not a page load. */
+    runSync(true);
   }
 
   /** Re-render, re-check deadlines, and refresh the worker's copy. */
@@ -221,6 +237,61 @@
       $('#importMsg').textContent = 'This is the record shape Atlas parses. Edit it, then press Import.';
     },
     'settings': function () { ui.renderSettings(); openDialog($('#dlgSettings')); },
+
+    /* ---------------------------------------------------------- account */
+
+    'account': function () {
+      accountMode = auth.isConnected() ? null : accountMode || 'demo';
+      ui.renderAccountDialog(accountMode);
+      openDialog($('#dlgAccount'));
+    },
+    'account-mode': function (el) {
+      accountMode = el.getAttribute('data-mode');
+      ui.renderAccountDialog(accountMode);
+    },
+    'do-connect-demo': function () {
+      var form = $('#accountForm');
+      try {
+        auth.connectDemo({
+          displayName: form.displayName.value,
+          email: form.email.value
+        }).then(afterConnect);
+      } catch (err) {
+        ui.accountMessage(err.message, 'error');
+      }
+    },
+    'do-connect-live': function () {
+      var form = $('#accountForm');
+      /* Persist the connector URL first, so the field survives a failed attempt. */
+      auth.setConnectorBase(form.connectorBase.value);
+      if (!auth.hasConnector()) {
+        /* Re-render first — it rebuilds the pane, message and all. */
+        ui.renderAccountDialog('live');
+        ui.accountMessage('Add your connector URL, then sign in.', 'error');
+        return;
+      }
+
+      ui.accountMessage('Signing in to ' + auth.normaliseSchool(form.school.value) + '…', 'busy');
+      auth.connectLive({
+        school: form.school.value,
+        email: form.email.value,
+        password: form.password.value
+      }).then(function (session) {
+        form.password.value = '';               // never leave it sitting in the DOM
+        afterConnect(session);
+      }).catch(function (err) {
+        if (form.password) form.password.value = '';
+        ui.accountMessage(err.message, 'error');
+      });
+    },
+    'disconnect': function () {
+      if (!confirm('Sign out of ManageBac?\n\nYour assignments stay in Atlas — only the connection is dropped.')) return;
+      auth.disconnect();
+      accountMode = 'demo';
+      closeDialog($('#dlgAccount'));
+      ui.toast('Signed out', 'info');
+      render();
+    },
     'enable-notifications': function () {
       if (!notify.supported()) { ui.toast('This browser has no Notifications API.', 'warn'); return; }
       if (!notify.secureEnough()) { ui.toast('Notifications need https or localhost — run the local server.', 'warn'); return; }
@@ -382,6 +453,7 @@
 
   function boot() {
     store.load();
+    auth.load();
 
     ctx.filter = store.state.settings.filter || 'upcoming';
     ctx.view = store.state.settings.view || 'list';
@@ -399,11 +471,15 @@
     var m = /#a=([\w-]+)/.exec(location.hash);
     if (m) setTimeout(function () { openEditor(m[1]); }, 120);
 
-    /* First run, or auto-sync enabled: pull the ManageBac feed. */
-    var firstRun = !store.state.lastSyncAt;
-    if (firstRun || store.state.settings.autoSyncOnOpen) {
+    if (!auth.isConnected()) {
+      /* Nothing to sync until an account is attached — open the sign-in. */
+      setTimeout(function () {
+        ui.renderAccountDialog(accountMode);
+        openDialog($('#dlgAccount'));
+      }, 260);
+    } else if (!store.state.lastSyncAt || store.state.settings.autoSyncOnOpen) {
       runSync(false).then(function () {
-        if (firstRun && notify.permission() === 'default' && notify.supported() && notify.secureEnough()) {
+        if (notify.permission() === 'default' && notify.supported() && notify.secureEnough()) {
           ui.toast('Turn on desktop alerts to be told about new deadlines', 'info');
         }
       });

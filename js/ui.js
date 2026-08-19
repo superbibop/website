@@ -82,6 +82,13 @@
   function renderSyncStatus() {
     var el = $('#mbStatus'), dot = $('#mbDot');
     if (!el) return;
+
+    if (!global.Atlas.auth.isConnected()) {
+      el.textContent = 'No account connected';
+      if (dot) dot.className = 'h-1.5 w-1.5 rounded-full bg-amber-400/80';
+      return;
+    }
+
     var last = store.state.lastSyncAt;
     if (!last) {
       el.textContent = 'Not synced yet';
@@ -99,6 +106,150 @@
     el.textContent = notify.statusText();
     var granted = notify.permission() === 'granted';
     el.className = 'text-[12px] leading-snug ' + (granted ? 'text-atlas-300/90' : 'text-haze-400');
+  }
+
+  /* -------------------------------------------------------------- account */
+
+  function renderAccountChip() {
+    var auth = global.Atlas.auth;
+    var chip = $('#accountChip');
+    var mobile = $('#accountChipMobile');
+    var on = auth.isConnected();
+    var s = auth.current();
+    var name = on ? s.displayName : 'Sign in';
+    var av = on ? U.initials(s.displayName) : '?';
+
+    if (chip) {
+      chip.innerHTML =
+        '<span class="h-8 w-8 shrink-0 rounded-lg grid place-items-center text-[11px] font-semibold ring-1 ' +
+          (on ? U.courseTone(s.displayName) : 'bg-ink-800 text-haze-500 ring-white/10') + '">' + esc(av) + '</span>' +
+        '<span class="min-w-0 flex-1">' +
+          '<span class="block text-[13px] font-medium text-slate-100 truncate">' + esc(name) + '</span>' +
+          '<span class="block text-[11px] truncate ' + (on ? 'text-atlas-300/80' : 'text-haze-500') + '">' + esc(auth.statusLine()) + '</span>' +
+        '</span>' +
+        (on ? '<span class="h-1.5 w-1.5 shrink-0 rounded-full bg-atlas-400 shadow-[0_0_8px_rgba(95,211,188,.9)]"></span>' : '');
+    }
+    if (mobile) {
+      mobile.textContent = av;
+      mobile.className = 'lg:hidden h-9 w-9 rounded-lg grid place-items-center text-[11px] font-semibold ring-1 transition ' +
+        (on ? U.courseTone(s.displayName) : 'bg-ink-850 text-haze-400 ring-white/[0.06]');
+    }
+  }
+
+  function field(label, name, type, value, placeholder, hint, disabled) {
+    return '<div>' +
+      '<label class="atlas-label">' + esc(label) + '</label>' +
+      '<input name="' + name + '" type="' + type + '" value="' + esc(value || '') + '" ' +
+        'placeholder="' + esc(placeholder || '') + '" ' + (disabled ? 'disabled ' : '') +
+        'autocomplete="' + (type === 'password' ? 'current-password' : (name === 'email' ? 'username' : 'off')) + '" ' +
+        'class="atlas-input' + (disabled ? ' opacity-45 cursor-not-allowed' : '') + '" />' +
+      (hint ? '<p class="text-[11.5px] text-haze-500 mt-1 leading-snug">' + hint + '</p>' : '') +
+    '</div>';
+  }
+
+  function renderAccountDialog(uiMode) {
+    var auth = global.Atlas.auth;
+    var body = $('#accountBody');
+    var heading = $('#accountHeading');
+    var sub = $('#accountSub');
+
+    /* ---- signed in ---- */
+    if (auth.isConnected()) {
+      var s = auth.current();
+      heading.textContent = 'Account';
+      sub.textContent = 'Atlas is connected to ManageBac.';
+
+      body.innerHTML =
+        '<div class="rounded-xl bg-ink-850 ring-1 ring-white/[0.06] p-4 flex items-center gap-3">' +
+          '<span class="h-11 w-11 shrink-0 rounded-xl grid place-items-center text-[14px] font-semibold ring-1 ' + U.courseTone(s.displayName) + '">' + esc(U.initials(s.displayName)) + '</span>' +
+          '<div class="min-w-0 flex-1">' +
+            '<p class="text-[14px] font-medium text-slate-100 truncate">' + esc(s.displayName) + '</p>' +
+            '<p class="text-[12px] text-haze-500 truncate">' + esc(s.email || s.school) + '</p>' +
+          '</div>' +
+          '<span class="shrink-0 h-6 px-2 rounded-md text-[11px] font-semibold uppercase tracking-wide grid place-items-center ring-1 ' +
+            (s.mode === 'live' ? 'bg-atlas-500/15 text-atlas-300 ring-atlas-500/25' : 'bg-white/5 text-haze-300 ring-white/10') + '">' + esc(s.mode) + '</span>' +
+        '</div>' +
+
+        '<dl class="rounded-xl bg-ink-850 ring-1 ring-white/[0.06] divide-y divide-white/[0.05] text-[12.5px]">' +
+          row('School', s.school) +
+          row('Connected', U.formatDate(s.connectedAt) + ', ' + U.formatTime(s.connectedAt)) +
+          row('Last sync', store.state.lastSyncAt ? U.formatDate(store.state.lastSyncAt) + ', ' + U.formatTime(store.state.lastSyncAt) : 'Never') +
+          row('Assignments', String(store.counts().all)) +
+        '</dl>' +
+
+        (s.mode === 'demo'
+          ? '<div class="rounded-xl bg-amber-500/[0.07] ring-1 ring-amber-500/20 p-3.5">' +
+              '<p class="text-[12.5px] text-amber-200/90 leading-relaxed">You are on the <strong>demo</strong> account — assignments come from the bundled mock feed. To pull your real ManageBac work, sign out and connect a school account.</p>' +
+            '</div>'
+          : '') +
+
+        '<div class="flex flex-wrap gap-2">' +
+          '<button data-act="sync" class="h-9 px-4 rounded-lg bg-atlas-500 text-ink-950 font-semibold text-[13px] hover:bg-atlas-400 transition">Sync now</button>' +
+          '<button data-act="import" class="h-9 px-3.5 rounded-lg bg-ink-800 ring-1 ring-white/10 text-[13px] text-haze-200 hover:ring-white/20 transition">Import a file</button>' +
+          '<div class="flex-1"></div>' +
+          '<button data-act="disconnect" class="h-9 px-3.5 rounded-lg text-[13px] text-rose-300/80 hover:text-rose-200 hover:bg-rose-500/10 transition">Sign out</button>' +
+        '</div>';
+      return;
+    }
+
+    /* ---- signed out ---- */
+    var m = uiMode || 'demo';
+    heading.textContent = 'Connect ManageBac';
+    sub.textContent = 'Sign in to pull your assignments into Atlas.';
+
+    var tab = function (key, label, note) {
+      var on = m === key;
+      return '<button data-act="account-mode" data-mode="' + key + '" class="flex-1 rounded-xl p-3 text-left ring-1 transition ' +
+        (on ? 'bg-atlas-500/[0.10] ring-atlas-500/35' : 'bg-ink-850 ring-white/[0.06] hover:ring-white/15') + '">' +
+        '<span class="block text-[13px] font-medium ' + (on ? 'text-atlas-200' : 'text-slate-200') + '">' + esc(label) + '</span>' +
+        '<span class="block text-[11.5px] text-haze-500 mt-0.5 leading-snug">' + esc(note) + '</span>' +
+      '</button>';
+    };
+
+    var hasConnector = global.Atlas.auth.hasConnector();
+
+    var demoForm =
+      field('Your name', 'displayName', 'text', '', 'Alex Rivera', 'Only used to greet you. Stays on this device.') +
+      field('Email', 'email', 'email', '', 'you@school.edu', 'Optional.') +
+      '<button data-act="do-connect-demo" class="w-full h-10 rounded-lg bg-atlas-500 text-ink-950 font-semibold text-[13.5px] hover:bg-atlas-400 transition">Continue with demo account</button>' +
+      '<p class="text-[11.5px] text-haze-500 leading-relaxed">Loads the bundled ManageBac mock feed so you can try the dashboard, the deadline alerts and the sync flow end to end.</p>';
+
+    var liveForm =
+      field('School ManageBac address', 'school', 'text', '', 'myschool.managebac.com') +
+      field('Email', 'email', 'email', '', 'you@school.edu') +
+      field('Password', 'password', 'password', '', hasConnector ? '' : 'Add a connector URL first', null, !hasConnector) +
+      '<div class="rounded-xl bg-ink-850 ring-1 ring-white/[0.06] p-3.5 space-y-2.5">' +
+        '<p class="text-[11px] font-medium uppercase tracking-[0.13em] text-haze-500">Connector</p>' +
+        '<input name="connectorBase" type="url" value="' + esc(store.state.settings.connectorBase || '') + '" placeholder="https://your-server.example/api/managebac" class="atlas-input" />' +
+        '<p class="text-[11.5px] text-haze-500 leading-relaxed">ManageBac has no public student sign-in endpoint, so a browser cannot authenticate directly. Point this at a small server you run: it takes <code class="text-atlas-300/80">POST /session</code> and returns a token, then serves <code class="text-atlas-300/80">GET /assignments</code>.</p>' +
+      '</div>' +
+      (hasConnector ? '' :
+        '<div class="rounded-xl bg-amber-500/[0.07] ring-1 ring-amber-500/20 p-3.5">' +
+          '<p class="text-[12.5px] text-amber-200/90 leading-relaxed">Password sign-in is disabled until a connector URL is set — Atlas will not take a school password it has nowhere safe to send.</p>' +
+        '</div>') +
+      '<button data-act="do-connect-live" class="w-full h-10 rounded-lg font-semibold text-[13.5px] transition ' +
+        (hasConnector ? 'bg-atlas-500 text-ink-950 hover:bg-atlas-400' : 'bg-ink-800 text-haze-500 ring-1 ring-white/10 cursor-not-allowed') + '">Sign in to ManageBac</button>' +
+      '<p class="text-[11.5px] text-haze-500 leading-relaxed">Your password is sent once to your connector and never stored by Atlas. The session token it returns is kept only until you close the browser.</p>';
+
+    body.innerHTML =
+      '<div class="flex gap-2">' + tab('demo', 'Demo account', 'Try it now, no credentials') + tab('live', 'School account', 'Your real ManageBac') + '</div>' +
+      '<form id="accountForm" class="space-y-3.5" autocomplete="on">' + (m === 'demo' ? demoForm : liveForm) + '</form>' +
+      '<p id="accountMsg" class="text-[12px] min-h-[18px] text-haze-500"></p>';
+  }
+
+  function row(label, value) {
+    return '<div class="flex items-center justify-between gap-3 px-3.5 py-2.5">' +
+      '<dt class="text-haze-500">' + esc(label) + '</dt>' +
+      '<dd class="text-slate-200 truncate">' + esc(value) + '</dd>' +
+    '</div>';
+  }
+
+  function accountMessage(text, tone) {
+    var el = $('#accountMsg');
+    if (!el) return;
+    var tones = { error: 'text-rose-300', ok: 'text-atlas-300', info: 'text-haze-500', busy: 'text-haze-400' };
+    el.textContent = text;
+    el.className = 'text-[12px] min-h-[18px] ' + (tones[tone] || tones.info);
   }
 
   /* ------------------------------------------------- new from managebac */
@@ -218,14 +369,21 @@
       done:     ['Nothing completed yet', 'Tick something off and it will show up here.'],
       all:      ['No assignments yet', 'Sync ManageBac or add one manually to get started.']
     };
+    var connected = global.Atlas.auth.isConnected();
     var m = msgs[ctx.filter] || msgs.all;
     if (ctx.search) m = ['No matches', 'Nothing matches "' + ctx.search + '".'];
+    else if (!connected) m = ['Connect your ManageBac account', 'Atlas pulls in your assignments, sorts them by urgency, and alerts you before every deadline.'];
+
+    var cta = ctx.search ? ''
+      : connected
+        ? '<button data-act="sync" class="mt-4 h-9 px-4 rounded-lg bg-atlas-500/10 text-atlas-300 ring-1 ring-atlas-500/25 hover:bg-atlas-500/20 text-[13px] font-medium transition">Sync ManageBac</button>'
+        : '<button data-act="account" class="mt-4 h-10 px-5 rounded-lg bg-atlas-500 text-ink-950 text-[13.5px] font-semibold hover:bg-atlas-400 shadow-[0_6px_20px_-8px_rgba(95,211,188,.8)] transition">Connect ManageBac</button>';
 
     return '<div class="rounded-2xl border border-dashed border-white/[0.08] py-14 px-6 text-center">' +
       '<div class="mx-auto h-12 w-12 rounded-xl bg-ink-850 ring-1 ring-white/[0.06] grid place-items-center text-haze-500 mb-3.5">' + ICONS.empty + '</div>' +
       '<h3 class="text-[14px] font-medium text-slate-200">' + esc(m[0]) + '</h3>' +
-      '<p class="text-[12.5px] text-haze-500 mt-1 max-w-xs mx-auto leading-relaxed">' + esc(m[1]) + '</p>' +
-      (ctx.search ? '' : '<button data-act="sync" class="mt-4 h-9 px-4 rounded-lg bg-atlas-500/10 text-atlas-300 ring-1 ring-atlas-500/25 hover:bg-atlas-500/20 text-[13px] font-medium transition">Sync ManageBac</button>') +
+      '<p class="text-[12.5px] text-haze-500 mt-1 max-w-sm mx-auto leading-relaxed">' + esc(m[1]) + '</p>' +
+      cta +
       '</div>';
   }
 
@@ -436,6 +594,7 @@
   /* --------------------------------------------------------------- main */
 
   function renderAll(ctx) {
+    renderAccountChip();
     renderSideNav(ctx);
     renderFilterChips(ctx);
     renderStats();
@@ -455,6 +614,9 @@
   global.Atlas.ui = {
     renderAll: renderAll,
     renderSettings: renderSettings,
+    renderAccountChip: renderAccountChip,
+    renderAccountDialog: renderAccountDialog,
+    accountMessage: accountMessage,
     renderNotifStatus: renderNotifStatus,
     renderSyncStatus: renderSyncStatus,
     toast: toast

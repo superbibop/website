@@ -21,6 +21,8 @@
     syncIntervalMinutes: 15,
     view: 'list',
     filter: 'upcoming',
+    /* Base URL of the student's own ManageBac connector (see js/auth.js). */
+    connectorBase: '',
     quietHours: { enabled: false, from: '22:00', to: '07:00' }
   };
 
