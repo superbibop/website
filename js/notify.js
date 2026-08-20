@@ -158,43 +158,6 @@
     }
   }
 
-  /* ------------------------------------------------- sync announcements */
-
-  /** Announce what a ManageBac sync brought in. */
-  function announceSync(result) {
-    if (!store.state.settings.notifyOnNewAssignment) return Promise.resolve(false);
-
-    var added = result.added || [];
-    var movedDeadlines = (result.updated || []).filter(function (a) { return a._changedDue; });
-    if (!added.length && !movedDeadlines.length) return Promise.resolve(false);
-
-    var title, body;
-
-    if (added.length === 1 && !movedDeadlines.length) {
-      var a = added[0];
-      title = 'New from ManageBac — ' + a.course;
-      body = a.title + '\n' + U.relativeDue(a.dueAt);
-    } else {
-      var bits = [];
-      if (added.length) bits.push(U.plural(added.length, 'new assignment'));
-      if (movedDeadlines.length) bits.push(U.plural(movedDeadlines.length, 'changed deadline'));
-      title = 'New from ManageBac';
-      body = bits.join(' · ') + '\n' +
-        added.concat(movedDeadlines).slice(0, 3).map(function (x) {
-          return '• ' + x.title + ' — ' + U.relativeDue(x.dueAt);
-        }).join('\n');
-    }
-
-    return show({
-      title: title,
-      body: body,
-      tag: 'atlas-sync',
-      requireInteraction: true,
-      data: { kind: 'sync' },
-      actions: [{ action: 'open', title: 'Open Atlas' }]
-    });
-  }
-
   /* --------------------------------------------------- deadline reminders */
 
   /**
@@ -320,7 +283,6 @@
     registerServiceWorker: registerServiceWorker,
     ensurePermission: ensurePermission,
     show: show,
-    announceSync: announceSync,
     runDeadlineCheck: runDeadlineCheck,
     startScheduler: startScheduler,
     stopScheduler: stopScheduler,

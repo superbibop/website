@@ -3,15 +3,12 @@
  * Every import path in the app funnels through here. A file is classified,
  * read once, and then routed:
  *
- *   feed   .json          -> parsed as a ManageBac payload into assignments
+ *   feed   .json          -> parsed as an assignment payload into tasks
  *   table  .csv .tsv      -> converted to feed records, then the same parser
  *   text   .txt .md ...   -> handed to the assistant as text
  *   image  .png .jpg ...  -> handed to the assistant as an image block
  *   pdf    .pdf           -> handed to the assistant as a document block
  *   other  anything else  -> stored as an attachment, not parsed
- *
- * Attachments live in IndexedDB rather than localStorage: a photo of a
- * worksheet is megabytes, and localStorage would blow its quota instantly.
  */
 (function (global) {
   'use strict';
@@ -159,8 +156,8 @@
   }
 
   /**
-   * Turn a spreadsheet export into ManageBac-shaped records, so the existing
-   * parser in js/managebac.js does the real work.
+   * Turn a spreadsheet export into the generic record shape, so the parser
+   * in js/importer.js does the real work.
    */
   function tableToFeed(text, delimiter) {
     var rows = parseDelimited(text, delimiter);

@@ -9,7 +9,7 @@
  *      once the app has been installed.
  */
 
-var CACHE = 'atlas-shell-v2';
+var CACHE = 'atlas-shell-v3';
 var SNAPSHOT_URL = '/__atlas_snapshot__';   // virtual key inside the cache
 
 var SHELL = [
@@ -20,14 +20,12 @@ var SHELL = [
   './manifest.webmanifest',
   './js/util.js',
   './js/store.js',
-  './js/auth.js',
-  './js/managebac.js',
+  './js/importer.js',
   './js/files.js',
   './js/assistant.js',
   './js/notify.js',
   './js/ui.js',
-  './js/app.js',
-  './data/managebac-feed.json'
+  './js/app.js'
 ];
 
 self.addEventListener('install', function (event) {
@@ -171,7 +169,7 @@ self.addEventListener('sync', function (event) {
 
 /* Wired up for a future push server; harmless until one exists. */
 self.addEventListener('push', function (event) {
-  var payload = { title: 'New from ManageBac', body: 'Open Atlas to see what changed.' };
+  var payload = { title: 'Atlas', body: 'Open Atlas to see what changed.' };
   try { if (event.data) payload = Object.assign(payload, event.data.json()); } catch (e) {}
   event.waitUntil(self.registration.showNotification(payload.title, {
     body: payload.body,

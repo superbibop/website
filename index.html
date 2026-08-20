@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Atlas — Homework &amp; Deadlines</title>
-<meta name="description" content="Atlas tracks your homework, syncs assignments from ManageBac, and sends native desktop notifications before every deadline." />
+<meta name="description" content="Atlas tracks your homework and tasks, and sends native desktop notifications before every deadline." />
 <meta name="theme-color" content="#07090C" />
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
@@ -71,26 +71,9 @@
       </div>
     </div>
 
-    <!-- Account / ManageBac connection -->
-    <div class="px-3 pb-3">
-      <button data-act="account" id="accountChip" class="w-full rounded-xl bg-ink-850 ring-1 ring-white/[0.06] hover:ring-white/15 p-2.5 flex items-center gap-2.5 text-left transition"></button>
-    </div>
-
     <nav id="sideNav" class="px-3 space-y-1 flex-1 overflow-y-auto"></nav>
 
     <div class="p-3 space-y-2 border-t border-white/5">
-      <div class="rounded-xl bg-ink-850 ring-1 ring-white/[0.06] p-3.5">
-        <div class="flex items-center gap-2 mb-2.5">
-          <span id="mbDot" class="h-1.5 w-1.5 rounded-full bg-haze-500"></span>
-          <span class="text-[11px] font-medium uppercase tracking-[0.13em] text-haze-500">ManageBac</span>
-        </div>
-        <p id="mbStatus" class="text-[12px] text-haze-400 leading-snug mb-3">Not synced yet</p>
-        <button data-act="sync" class="w-full h-9 rounded-lg bg-atlas-500/10 text-atlas-300 ring-1 ring-atlas-500/25 hover:bg-atlas-500/20 hover:ring-atlas-500/40 transition text-[13px] font-medium inline-flex items-center justify-center gap-2">
-          <svg data-sync-icon viewBox="0 0 24 24" class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 4v5h-5"/></svg>
-          Sync now
-        </button>
-      </div>
-
       <button data-act="enable-notifications" id="notifPanel" class="w-full text-left rounded-xl bg-ink-850 ring-1 ring-white/[0.06] p-3.5 hover:ring-white/15 transition">
         <div class="flex items-center gap-2 mb-1.5">
           <svg viewBox="0 0 24 24" class="h-3.5 w-3.5 text-haze-400" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 8-3 8h18s-3-1-3-8"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
@@ -127,8 +110,8 @@
 
         <div class="flex-1 sm:hidden"></div>
 
-        <button data-act="sync" class="lg:hidden h-9 w-9 rounded-lg bg-ink-850 ring-1 ring-white/[0.06] grid place-items-center text-haze-300 hover:text-atlas-300 transition" title="Sync ManageBac">
-          <svg data-sync-icon viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 4v5h-5"/></svg>
+        <button data-act="new" class="lg:hidden h-9 w-9 rounded-lg bg-ink-850 ring-1 ring-white/[0.06] grid place-items-center text-haze-300 hover:text-atlas-300 transition" title="Add task">
+          <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
         </button>
 
         <button data-act="import" class="hidden sm:inline-flex h-9 px-3 rounded-lg bg-ink-850 ring-1 ring-white/[0.06] hover:ring-white/15 items-center gap-2 text-[13px] text-haze-300 hover:text-slate-100 transition">
@@ -146,8 +129,6 @@
           <span class="hidden sm:inline">New</span>
         </button>
 
-        <button data-act="account" id="accountChipMobile" class="lg:hidden h-9 w-9 rounded-lg bg-ink-850 ring-1 ring-white/[0.06] grid place-items-center text-[11px] font-semibold text-haze-200 transition" title="Account"></button>
-
         <button data-act="settings" class="lg:hidden h-9 w-9 rounded-lg bg-ink-850 ring-1 ring-white/[0.06] grid place-items-center text-haze-300 transition" title="Settings">
           <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2v.2a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0-1.2-2.9H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.6 8.6l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3h.1A1.7 1.7 0 0 0 10.5 4.6V4.4a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9v.1a1.7 1.7 0 0 0 1.5 1h.2a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
         </button>
@@ -155,9 +136,6 @@
     </header>
 
     <div class="px-4 sm:px-6 lg:px-8 py-6 space-y-6 w-full max-w-[1400px]">
-
-      <!-- ===== NEW FROM MANAGEBAC ===== -->
-      <section id="mbNewSection" class="hidden"></section>
 
       <!-- ===== STATS ===== -->
       <section id="stats" class="grid grid-cols-2 lg:grid-cols-4 gap-3"></section>
@@ -227,9 +205,9 @@
 <!-- ============================ MODALS ============================ -->
 
 <dialog id="dlgEdit" class="atlas-dialog">
-  <form id="formEdit" class="w-[min(94vw,540px)] rounded-2xl bg-ink-900 ring-1 ring-white/10 shadow-2xl overflow-hidden">
+  <form id="formEdit" class="w-[min(94vw,560px)] rounded-2xl bg-ink-900 ring-1 ring-white/10 shadow-2xl overflow-hidden">
     <div class="px-5 py-4 border-b border-white/5 flex items-center justify-between">
-      <h2 id="editTitle" class="text-[15px] font-semibold text-slate-100">New assignment</h2>
+      <h2 id="editTitle" class="text-[15px] font-semibold text-slate-100">Add Task</h2>
       <button type="button" data-close class="h-7 w-7 rounded-md grid place-items-center text-haze-500 hover:text-slate-200 hover:bg-white/5">&#10005;</button>
     </div>
     <div class="px-5 py-4 space-y-3.5 max-h-[65vh] overflow-y-auto">
@@ -255,19 +233,45 @@
           </select>
         </div>
       </div>
+      <fieldset class="rounded-xl bg-ink-850/60 ring-1 ring-white/[0.05] p-3.5 space-y-3">
+        <legend class="px-1.5 text-[11px] font-medium uppercase tracking-[0.13em] text-haze-500">Start</legend>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="atlas-label">Start date <span class="text-haze-500 font-normal">(optional)</span></label>
+            <input name="startDate" type="date" class="atlas-input" />
+          </div>
+          <div>
+            <label class="atlas-label">Start time</label>
+            <input name="startTime" type="time" value="08:00" class="atlas-input" />
+          </div>
+        </div>
+      </fieldset>
+      <fieldset class="rounded-xl bg-ink-850/60 ring-1 ring-white/[0.05] p-3.5 space-y-3">
+        <legend class="px-1.5 text-[11px] font-medium uppercase tracking-[0.13em] text-haze-500">Due</legend>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="atlas-label">Due date</label>
+            <input name="dueDate" type="date" required class="atlas-input" />
+          </div>
+          <div>
+            <label class="atlas-label">Due time</label>
+            <input name="dueTime" type="time" value="23:59" required class="atlas-input" />
+          </div>
+        </div>
+      </fieldset>
+      <div>
+        <label class="atlas-label">Description <span class="text-haze-500 font-normal">(optional)</span></label>
+        <textarea name="description" rows="3" maxlength="600" class="atlas-input resize-none" placeholder="Pages 210-214, show all working."></textarea>
+      </div>
       <div class="grid grid-cols-2 gap-3">
         <div>
-          <label class="atlas-label">Due date</label>
-          <input name="dueDate" type="date" required class="atlas-input" />
+          <label class="atlas-label">Points <span class="text-haze-500 font-normal">(optional)</span></label>
+          <input name="points" type="number" min="0" step="0.5" class="atlas-input" placeholder="20" />
         </div>
         <div>
-          <label class="atlas-label">Due time</label>
-          <input name="dueTime" type="time" value="23:59" required class="atlas-input" />
+          <label class="atlas-label">Labels <span class="text-haze-500 font-normal">(comma separated)</span></label>
+          <input name="labels" maxlength="120" class="atlas-input" placeholder="Unit 3, Paper 1" />
         </div>
-      </div>
-      <div>
-        <label class="atlas-label">Notes <span class="text-haze-500 font-normal">(optional)</span></label>
-        <textarea name="description" rows="3" maxlength="600" class="atlas-input resize-none" placeholder="Pages 210-214, show all working."></textarea>
       </div>
     </div>
     <div class="px-5 py-3.5 border-t border-white/5 flex items-center gap-2">
@@ -279,25 +283,12 @@
   </form>
 </dialog>
 
-<dialog id="dlgAccount" class="atlas-dialog">
-  <div class="w-[min(94vw,520px)] rounded-2xl bg-ink-900 ring-1 ring-white/10 shadow-2xl overflow-hidden">
-    <div class="px-5 py-4 border-b border-white/5 flex items-center justify-between">
-      <div>
-        <h2 id="accountHeading" class="text-[15px] font-semibold text-slate-100">Connect ManageBac</h2>
-        <p id="accountSub" class="text-[12px] text-haze-500 mt-0.5">Sign in to pull your assignments into Atlas.</p>
-      </div>
-      <button type="button" data-close class="h-7 w-7 rounded-md grid place-items-center text-haze-500 hover:text-slate-200 hover:bg-white/5">&#10005;</button>
-    </div>
-    <div id="accountBody" class="px-5 py-4 space-y-4 max-h-[70vh] overflow-y-auto"></div>
-  </div>
-</dialog>
-
 <dialog id="dlgImport" class="atlas-dialog">
   <div class="w-[min(94vw,620px)] rounded-2xl bg-ink-900 ring-1 ring-white/10 shadow-2xl overflow-hidden">
     <div class="px-5 py-4 border-b border-white/5 flex items-center justify-between">
       <div>
         <h2 class="text-[15px] font-semibold text-slate-100">Import files</h2>
-        <p class="text-[12px] text-haze-500 mt-0.5">Any file. Spreadsheets and feeds become assignments; photos, PDFs and notes go to the assistant.</p>
+        <p class="text-[12px] text-haze-500 mt-0.5">Any file. Spreadsheets and JSON become tasks; photos, PDFs and notes go to the assistant.</p>
       </div>
       <button type="button" data-close class="h-7 w-7 rounded-md grid place-items-center text-haze-500 hover:text-slate-200 hover:bg-white/5">&#10005;</button>
     </div>
@@ -348,8 +339,7 @@
 
 <script src="js/util.js"></script>
 <script src="js/store.js"></script>
-<script src="js/auth.js"></script>
-<script src="js/managebac.js"></script>
+<script src="js/importer.js"></script>
 <script src="js/files.js"></script>
 <script src="js/assistant.js"></script>
 <script src="js/notify.js"></script>

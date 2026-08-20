@@ -55,7 +55,7 @@ function makeWindow() {
 function loadAtlas() {
   const win = makeWindow();
   const ctx = createContext(win);
-  for (const f of ['js/util.js', 'js/store.js', 'js/managebac.js', 'js/notify.js']) {
+  for (const f of ['js/util.js', 'js/store.js', 'js/importer.js', 'js/notify.js']) {
     runInContext(readFileSync(join(ROOT, f), 'utf8'), ctx, { filename: f });
   }
   return win;
@@ -152,28 +152,28 @@ test('quiet hours hold reminders back', () => {
 
 test('moving a deadline re-arms the reminders for that assignment', () => {
   const win = loadAtlas();
-  const { store, notify, managebac } = win.Atlas;
+  const { store, notify, importer } = win.Atlas;
   store.load();
   store.setSettings({ leadTimes: [60] });
 
-  const first = managebac.parse([{ id: 'mb_1', title: 'Draft', class: { name: 'History HL' }, due_at: new Date(Date.now() + 30 * MIN).toISOString() }]);
-  managebac.merge(first);
+  const first = importer.parse([{ id: 'task_1', title: 'Draft', class: { name: 'History HL' }, due_at: new Date(Date.now() + 30 * MIN).toISOString() }]);
+  importer.merge(first);
   assert.equal(notify.runDeadlineCheck(), 1);
   assert.equal(notify.runDeadlineCheck(), 0);
 
-  /* Teacher pushes the deadline back a week, then it comes round again. */
-  managebac.merge(managebac.parse([{ id: 'mb_1', title: 'Draft', class: { name: 'History HL' }, due_at: new Date(Date.now() + 40 * MIN).toISOString() }]));
+  /* The deadline is pushed back, then the window opens again. */
+  importer.merge(importer.parse([{ id: 'task_1', title: 'Draft', class: { name: 'History HL' }, due_at: new Date(Date.now() + 40 * MIN).toISOString() }]));
   assert.equal(notify.runDeadlineCheck(), 1, 'a moved deadline should be able to alert again');
 });
 
-/* ------------------------------------------------- ManageBac parser tests */
+/* --------------------------------------------------------- parser tests */
 
-test('the parser maps ManageBac field names onto Atlas assignments', () => {
+test('the parser maps exported field names onto Atlas assignments', () => {
   const win = loadAtlas();
-  const { managebac } = win.Atlas;
+  const { importer } = win.Atlas;
   win.Atlas.store.load();
 
-  const parsed = managebac.parse({
+  const parsed = importer.parse({
     assignments: [
       { id: 'mb_7', title: 'Paper 2 mock', class: { name: 'English A Literature', code: 'ENG-A-1' }, assignment_type: 'Summative', due_at: '2026-09-01T23:59:00Z', max_points: 25, labels: ['Paper 2'], description: '<p>1,200 words</p>' },
       { assignment_id: 'mb_8', name: 'Vocab quiz', subject: 'Spanish B SL', category: 'Quiz', due_date: '2026-09-03' },
@@ -187,6 +187,7 @@ test('the parser maps ManageBac field names onto Atlas assignments', () => {
   assert.equal(parsed[0].courseCode, 'ENG-A-1');
   assert.equal(parsed[0].points, 25);
   assert.equal(parsed[0].description, '1,200 words', 'HTML is stripped');
+  assert.equal(parsed[1].description, '', 'a missing description must not become "undefined"');
   assert.equal(parsed[1].externalId, 'mb_8', 'alternate id field is honoured');
   assert.equal(parsed[1].course, 'Spanish B SL', 'a plain-string class is accepted');
   const dateOnly = new Date(parsed[1].dueAt);
@@ -196,17 +197,16 @@ test('the parser maps ManageBac field names onto Atlas assignments', () => {
   assert.equal(dateOnly.getHours(), 23, 'and land at end of day, not midnight UTC');
 });
 
-test('re-syncing the same feed adds nothing the second time', () => {
+test('re-importing the same feed adds nothing the second time', () => {
   const win = loadAtlas();
-  const { store, managebac } = win.Atlas;
+  const { store, importer } = win.Atlas;
   store.load();
   const feed = [{ id: 'mb_9', title: 'Lab', class: { name: 'Chemistry HL' }, due_at: new Date(Date.now() + 3600e3).toISOString() }];
 
-  const a = managebac.merge(managebac.parse(feed));
+  const a = importer.merge(importer.parse(feed));
   assert.equal(a.added.length, 1);
-  assert.equal(a.added[0].isNew, true, 'freshly synced work is flagged as new');
 
-  const b = managebac.merge(managebac.parse(feed));
+  const b = importer.merge(importer.parse(feed));
   assert.equal(b.added.length, 0);
   assert.equal(b.unchanged, 1);
   assert.equal(store.all().length, 1, 'no duplicate rows');

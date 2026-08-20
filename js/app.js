@@ -4,8 +4,7 @@
 
   var U = global.Atlas.util;
   var store = global.Atlas.store;
-  var auth = global.Atlas.auth;
-  var mb = global.Atlas.managebac;
+  var importer = global.Atlas.importer;
   var files = global.Atlas.files;
   var assistant = global.Atlas.assistant;
   var notify = global.Atlas.notify;
@@ -23,8 +22,6 @@
   };
 
   var editingId = null;
-  var syncing = false;
-  var accountMode = 'demo';       // which pane the sign-in dialog is showing
 
   function render() { ui.renderAll(ctx); }
 
@@ -32,6 +29,23 @@
 
   function openDialog(el) { if (!el.open) el.showModal(); }
   function closeDialog(el) { if (el.open) el.close(); }
+
+  /** A date + "HH:MM" pair from the form, as a Date. Empty fields -> null. */
+  function formDate(dateVal, timeVal) {
+    if (!dateVal) return null;
+    var parts = dateVal.split('-');
+    var t = String(timeVal || '').split(':');
+    return new Date(+parts[0], +parts[1] - 1, +parts[2], +t[0] || 0, +t[1] || 0, 0);
+  }
+
+  function dateParts(iso) {
+    var d = iso ? new Date(iso) : null;
+    if (!d || isNaN(d.getTime())) return { date: '', time: '' };
+    return {
+      date: U.dateKey(d),
+      time: U.pad(d.getHours()) + ':' + U.pad(d.getMinutes())
+    };
+  }
 
   function openEditor(id) {
     var dlg = $('#dlgEdit');
@@ -42,20 +56,28 @@
     if (id) {
       var a = store.byId(id);
       if (!a) return;
-      store.markSeen(id);
-      $('#editTitle').textContent = a.source === 'managebac' ? 'ManageBac assignment' : 'Edit assignment';
+      $('#editTitle').textContent = 'Edit task';
       form.title.value = a.title;
       form.course.value = a.course;
       form.type.value = a.type;
-      var d = new Date(a.dueAt);
-      form.dueDate.value = U.dateKey(d);
-      form.dueTime.value = U.pad(d.getHours()) + ':' + U.pad(d.getMinutes());
+
+      var start = dateParts(a.assignedAt);
+      form.startDate.value = start.date;
+      form.startTime.value = start.time;
+
+      var due = dateParts(a.dueAt);
+      form.dueDate.value = due.date;
+      form.dueTime.value = due.time;
+
       form.description.value = a.description || '';
+      form.points.value = (a.points != null && !isNaN(a.points)) ? a.points : '';
+      form.labels.value = (a.labels || []).join(', ');
       $('#btnDelete').classList.remove('hidden');
     } else {
-      $('#editTitle').textContent = 'New assignment';
+      $('#editTitle').textContent = 'Add Task';
       form.dueDate.value = U.dateKey(U.addDays(new Date(), 1));
       form.dueTime.value = '23:59';
+      form.startDate.value = U.dateKey(new Date());
       $('#btnDelete').classList.add('hidden');
     }
 
@@ -66,16 +88,22 @@
   function saveEditor(e) {
     e.preventDefault();
     var form = $('#formEdit');
-    var parts = form.dueDate.value.split('-');
-    var time = form.dueTime.value.split(':');
-    var due = new Date(+parts[0], +parts[1] - 1, +parts[2], +time[0] || 0, +time[1] || 0, 0);
+    var due = formDate(form.dueDate.value, form.dueTime.value);
+    if (!due) { ui.toast('Pick a due date', 'warn'); return; }
+
+    var start = formDate(form.startDate.value, form.startTime.value);
+    var points = form.points.value.trim();
 
     var patch = {
       title: form.title.value.trim() || 'Untitled',
       course: form.course.value.trim() || 'General',
       type: form.type.value,
       dueAt: due.toISOString(),
-      description: form.description.value.trim()
+      assignedAt: (start || new Date()).toISOString(),
+      description: form.description.value.trim(),
+      points: points === '' ? null : Number(points),
+      labels: form.labels.value.split(',').map(function (s) { return s.trim(); })
+        .filter(Boolean).slice(0, 4)
     };
 
     if (editingId) {
@@ -83,72 +111,15 @@
       /* Moving the deadline re-arms that assignment's reminders. */
       if (prev && prev.dueAt !== patch.dueAt) patch.notified = {};
       store.update(editingId, patch);
-      ui.toast('Assignment updated', 'ok');
+      ui.toast('Task updated', 'ok');
     } else {
       store.create(patch);
-      ui.toast('Assignment added', 'ok');
+      ui.toast('Task added', 'ok');
     }
 
     editingId = null;
     closeDialog($('#dlgEdit'));
     afterDataChange();
-  }
-
-  /* ---------------------------------------------------------------- sync */
-
-  function runSync(interactive) {
-    if (syncing) return Promise.resolve();
-    if (!auth.isConnected()) {
-      if (interactive) actions.account();
-      return Promise.resolve();
-    }
-    syncing = true;
-    document.body.classList.add('syncing');
-
-    /* The moment work arrives is exactly when asking for permission makes
-       sense — so ask here, while the click that started the sync is still
-       counted as user activation. */
-    var permissionStep = interactive
-      ? notify.ensurePermission(true).then(function () { ui.renderNotifStatus(); })
-      : Promise.resolve();
-
-    return permissionStep
-      .then(function () { return mb.sync(); })
-      .then(function (result) {
-        var added = result.added.length;
-        var moved = result.updated.filter(function (a) { return a._changedDue; }).length;
-
-        if (added || moved) {
-          var bits = [];
-          if (added) bits.push(U.plural(added, 'new assignment'));
-          if (moved) bits.push(U.plural(moved, 'deadline change'));
-          ui.toast('ManageBac: ' + bits.join(' and '), 'ok');
-          notify.announceSync(result);
-        } else if (interactive) {
-          ui.toast('ManageBac: already up to date', 'info');
-        }
-
-        afterDataChange();
-        return result;
-      })
-      .catch(function (err) {
-        console.error('[atlas] sync failed', err);
-        ui.toast('Sync failed — ' + (err.message || 'unknown error'), 'error');
-      })
-      .then(function () {
-        syncing = false;
-        document.body.classList.remove('syncing');
-      });
-  }
-
-  /** A sign-in just succeeded: close up, pull the feed, ask about alerts. */
-  function afterConnect(session) {
-    closeDialog($('#dlgAccount'));
-    render();
-    ui.toast('Connected as ' + session.displayName, 'ok');
-    /* Still inside the click that signed in, so the permission prompt is
-       allowed — and it now sits behind a deliberate action, not a page load. */
-    runSync(true);
   }
 
   /** Re-render, re-check deadlines, and refresh the worker's copy. */
@@ -208,12 +179,11 @@
       return;
     }
     try {
-      var result = mb.importPayload(payload);
+      var result = importer.importPayload(payload);
       closeDialog($('#dlgImport'));
       $('#importText').value = '';
-      ui.toast('Imported ' + U.plural(result.added.length, 'assignment') +
+      ui.toast('Imported ' + U.plural(result.added.length, 'task') +
         (result.updated.length ? ', updated ' + result.updated.length : ''), 'ok');
-      notify.announceSync(result);
       afterDataChange();
     } catch (e) {
       importMessage(e.message, 'error');
@@ -302,7 +272,7 @@
       store.remove(editingId);
       editingId = null;
       closeDialog($('#dlgEdit'));
-      ui.toast('Assignment deleted', 'info');
+      ui.toast('Task deleted', 'info');
       afterDataChange();
     },
     'filter': function (el) {
@@ -310,71 +280,15 @@
       store.setSettings({ filter: ctx.filter });
       render();
     },
-    'mark-all-seen': function () { store.markSeen(); render(); },
-    'sync': function () { runSync(true); },
     'import': openImport,
     'do-import': doImport,
     'pick-file': function () { $('#fileInput').click(); },
     'load-sample': function () {
-      $('#importText').value = JSON.stringify(mb.SAMPLE_SHAPE, null, 2);
+      $('#importText').value = JSON.stringify(importer.SAMPLE_SHAPE, null, 2);
       $('#importMsg').textContent = 'This is the record shape Atlas parses. Edit it, then press Import.';
     },
     'settings': function () { ui.renderSettings(); openDialog($('#dlgSettings')); },
 
-    /* ---------------------------------------------------------- account */
-
-    'account': function () {
-      accountMode = auth.isConnected() ? null : accountMode || 'demo';
-      ui.renderAccountDialog(accountMode);
-      openDialog($('#dlgAccount'));
-    },
-    'account-mode': function (el) {
-      accountMode = el.getAttribute('data-mode');
-      ui.renderAccountDialog(accountMode);
-    },
-    'do-connect-demo': function () {
-      var form = $('#accountForm');
-      try {
-        auth.connectDemo({
-          displayName: form.displayName.value,
-          email: form.email.value
-        }).then(afterConnect);
-      } catch (err) {
-        ui.accountMessage(err.message, 'error');
-      }
-    },
-    'do-connect-live': function () {
-      var form = $('#accountForm');
-      /* Persist the connector URL first, so the field survives a failed attempt. */
-      auth.setConnectorBase(form.connectorBase.value);
-      if (!auth.hasConnector()) {
-        /* Re-render first — it rebuilds the pane, message and all. */
-        ui.renderAccountDialog('live');
-        ui.accountMessage('Add your connector URL, then sign in.', 'error');
-        return;
-      }
-
-      ui.accountMessage('Signing in to ' + auth.normaliseSchool(form.school.value) + '…', 'busy');
-      auth.connectLive({
-        school: form.school.value,
-        email: form.email.value,
-        password: form.password.value
-      }).then(function (session) {
-        form.password.value = '';               // never leave it sitting in the DOM
-        afterConnect(session);
-      }).catch(function (err) {
-        if (form.password) form.password.value = '';
-        ui.accountMessage(err.message, 'error');
-      });
-    },
-    'disconnect': function () {
-      if (!confirm('Sign out of ManageBac?\n\nYour assignments stay in Atlas — only the connection is dropped.')) return;
-      auth.disconnect();
-      accountMode = 'demo';
-      closeDialog($('#dlgAccount'));
-      ui.toast('Signed out', 'info');
-      render();
-    },
     'enable-notifications': function () {
       if (!notify.supported()) { ui.toast('This browser has no Notifications API.', 'warn'); return; }
       if (!notify.secureEnough()) { ui.toast('Notifications need https or localhost — run the local server.', 'warn'); return; }
@@ -389,7 +303,7 @@
           ui.toast('Desktop alerts are on', 'ok');
           notify.show({
             title: 'Atlas notifications are on',
-            body: 'You will be alerted before every deadline, and whenever ManageBac has something new.',
+            body: 'You will be alerted before every deadline.',
             tag: 'atlas-welcome', force: true
           });
           notify.runDeadlineCheck();
@@ -467,13 +381,12 @@
         var payload = entry.kind === 'table'
           ? files.tableToFeed(entry.text)
           : JSON.parse(entry.text);
-        var result = mb.importPayload(payload);
+        var result = importer.importPayload(payload);
         closeDialog($('#dlgImport'));
         importedFiles = [];
         ui.renderImportFiles(importedFiles);
-        ui.toast('Imported ' + U.plural(result.added.length, 'assignment') +
+        ui.toast('Imported ' + U.plural(result.added.length, 'task') +
           (result.updated.length ? ', updated ' + result.updated.length : '') + ' from ' + entry.name, 'ok');
-        notify.announceSync(result);
         afterDataChange();
       } catch (err) {
         importMessage(err.message, 'error');
@@ -595,7 +508,6 @@
 
       if (e.key === 'n') { e.preventDefault(); openEditor(null); }
       else if (e.key === '/') { e.preventDefault(); $('#search').focus(); }
-      else if (e.key === 's') { e.preventDefault(); runSync(true); }
       else if (e.key === 'a') { e.preventDefault(); actions.assistant(); }
       else if (e.key === 'c') { e.preventDefault(); ctx.view = ctx.view === 'calendar' ? 'list' : 'calendar'; store.setSettings({ view: ctx.view }); render(); }
     });
@@ -621,7 +533,6 @@
 
   function boot() {
     store.load();
-    auth.load();
 
     ctx.filter = store.state.settings.filter || 'upcoming';
     ctx.view = store.state.settings.view || 'list';
@@ -644,22 +555,6 @@
     /* Opened straight from a notification: jump to that assignment. */
     var m = /#a=([\w-]+)/.exec(location.hash);
     if (m) setTimeout(function () { openEditor(m[1]); }, 120);
-
-    if (!auth.isConnected()) {
-      /* Nothing to sync until an account is attached — open the sign-in. */
-      setTimeout(function () {
-        ui.renderAccountDialog(accountMode);
-        openDialog($('#dlgAccount'));
-      }, 260);
-    } else if (!store.state.lastSyncAt || store.state.settings.autoSyncOnOpen) {
-      runSync(false).then(function () {
-        if (notify.permission() === 'default' && notify.supported() && notify.secureEnough()) {
-          ui.toast('Turn on desktop alerts to be told about new deadlines', 'info');
-        }
-      });
-    }
-
-    store.subscribe(function () { ui.renderSyncStatus(); });
   }
 
   if (document.readyState === 'loading') {
@@ -668,5 +563,5 @@
     boot();
   }
 
-  global.Atlas.app = { ctx: ctx, render: render, sync: runSync };
+  global.Atlas.app = { ctx: ctx, render: render };
 })(window);

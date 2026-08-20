@@ -15,21 +15,14 @@
     notificationsEnabled: true,
     /* Minutes before the deadline at which to fire a reminder. */
     leadTimes: [1440, 60],
-    notifyOnNewAssignment: true,
     notifyOnOverdue: true,
-    autoSyncOnOpen: true,
-    syncIntervalMinutes: 15,
     view: 'list',
     filter: 'upcoming',
-    /* Base URL of the student's own ManageBac connector (see js/auth.js). */
-    connectorBase: '',
     quietHours: { enabled: false, from: '22:00', to: '07:00' }
   };
 
   var state = {
     assignments: [],
-    lastSyncAt: null,
-    syncCursor: 0,        // how far through the mock ManageBac feed we have read
     settings: Object.assign({}, DEFAULT_SETTINGS)
   };
 
@@ -43,8 +36,6 @@
       if (raw) {
         var parsed = JSON.parse(raw);
         state.assignments = Array.isArray(parsed.assignments) ? parsed.assignments.map(migrate) : [];
-        state.lastSyncAt = parsed.lastSyncAt || null;
-        state.syncCursor = parsed.syncCursor || 0;
       }
     } catch (e) {
       console.warn('[atlas] could not read saved assignments, starting fresh', e);
@@ -61,11 +52,7 @@
 
   function save() {
     try {
-      localStorage.setItem(KEY_DATA, JSON.stringify({
-        assignments: state.assignments,
-        lastSyncAt: state.lastSyncAt,
-        syncCursor: state.syncCursor
-      }));
+      localStorage.setItem(KEY_DATA, JSON.stringify({ assignments: state.assignments }));
       localStorage.setItem(KEY_SETTINGS, JSON.stringify(state.settings));
     } catch (e) {
       console.warn('[atlas] could not save (storage full or blocked)', e);
@@ -76,9 +63,7 @@
   function migrate(a) {
     a.notified = a.notified || {};
     a.status = a.status === 'done' ? 'done' : 'todo';
-    a.source = a.source || 'manual';
     a.type = a.type || 'homework';
-    if (typeof a.isNew !== 'boolean') a.isNew = false;
     return a;
   }
 
@@ -112,7 +97,6 @@
       points: null,
       labels: [],
       status: 'todo',
-      isNew: false,
       notified: {},
       createdAt: now,
       updatedAt: now
@@ -153,17 +137,7 @@
   function toggleDone(id) {
     var a = byId(id);
     if (!a) return null;
-    return update(id, { status: a.status === 'done' ? 'todo' : 'done', isNew: false });
-  }
-
-  /** Clear the "new from ManageBac" flag — on one item, or on all of them. */
-  function markSeen(id) {
-    if (id) { update(id, { isNew: false }); return; }
-    var touched = false;
-    state.assignments.forEach(function (a) {
-      if (a.isNew) { a.isNew = false; touched = true; }
-    });
-    if (touched) emit();
+    return update(id, { status: a.status === 'done' ? 'todo' : 'done' });
   }
 
   /** Record that a given reminder has fired, so it never fires twice. */
@@ -177,11 +151,6 @@
   /* ------------------------------------------------------------ selectors */
 
   function all() { return state.assignments.slice(); }
-
-  function newFromManageBac() {
-    return state.assignments.filter(function (a) { return a.isNew && a.source === 'managebac'; })
-      .sort(bySoonest);
-  }
 
   function bySoonest(a, b) {
     return new Date(a.dueAt) - new Date(b.dueAt);
@@ -222,7 +191,7 @@
 
   function counts(now) {
     now = now || new Date();
-    var c = { overdue: 0, today: 0, week: 0, upcoming: 0, done: 0, all: state.assignments.length, newCount: 0 };
+    var c = { overdue: 0, today: 0, week: 0, upcoming: 0, done: 0, all: state.assignments.length };
     state.assignments.forEach(function (a) {
       if (a.status === 'done') { c.done++; return; }
       var d = U.daysUntil(a.dueAt, now);
@@ -230,7 +199,6 @@
       if (new Date(a.dueAt) < now) c.overdue++;
       if (d === 0) c.today++;
       if (d >= 0 && d <= 7) c.week++;
-      if (a.isNew) c.newCount++;
     });
     return c;
   }
@@ -266,8 +234,6 @@
     localStorage.removeItem(KEY_DATA);
     localStorage.removeItem(KEY_SETTINGS);
     state.assignments = [];
-    state.lastSyncAt = null;
-    state.syncCursor = 0;
     state.settings = Object.assign({}, DEFAULT_SETTINGS);
     emit();
   }
@@ -279,9 +245,9 @@
     load: load, save: save, emit: emit, subscribe: subscribe,
     create: create, update: update, remove: remove,
     byId: byId, byExternalId: byExternalId,
-    toggleDone: toggleDone, markSeen: markSeen, markNotified: markNotified,
+    toggleDone: toggleDone, markNotified: markNotified,
     all: all, query: query, counts: counts, courses: courses,
-    groupByDay: groupByDay, newFromManageBac: newFromManageBac,
+    groupByDay: groupByDay,
     setSettings: setSettings, resetAll: resetAll
   };
 })(window);
