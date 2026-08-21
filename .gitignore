@@ -6,7 +6,7 @@ Desktop.ini
 .vscode/
 .idea/
 
-# Node (Atlas itself has no dependencies; this is for future tooling)
+# Node (atlas is a single HTML file; this is for future tooling)
 node_modules/
 npm-debug.log*
 .env
