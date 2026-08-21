@@ -1,6 +1,10 @@
-/* atlas — root: sidebar + view routing + global keyboard shortcuts. */
+/* atlas — root: URL routing + sidebar + global keyboard shortcuts.
+ *
+ * Views live in the URL path: /dashboard /calendar /cascader /group /setup.
+ * Works at any base (localhost:5173/, github.io/atlas/, a custom domain);
+ * GitHub Pages serves the SPA for unknown paths via 404.html. */
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { StoreProvider, useStore } from './store';
 import { Sidebar, type View } from './ui/Shell';
 import { Dashboard } from './views/Dashboard';
@@ -19,25 +23,63 @@ const SHORTCUTS: [string, string][] = [
   ['?', 'This help']
 ];
 
+const ROUTES: View[] = ['dashboard', 'calendar', 'cascader', 'group', 'setup'];
+
+/** Split the current URL into { base, view } — base is where to append routes. */
+function readRoute(): { base: string; view: View | null } {
+  const path = window.location.pathname.replace(/\/+$/, '');
+  const segs = path.split('/');
+  const last = segs[segs.length - 1];
+  if ((ROUTES as string[]).includes(last)) {
+    return { base: segs.slice(0, -1).join('/') + '/', view: last as View };
+  }
+  return { base: (path ? path + '/' : '/'), view: null };
+}
+
 function Workspace() {
   const { state } = useStore();
-  const [view, setView] = useState<View>(state.setupDone ? 'dashboard' : 'setup');
-  const [help, setHelp] = useState(false);
+  const route = useRef(readRoute());
+  const [view, setView] = useState<View>(
+    route.current.view ?? (state.setupDone ? 'dashboard' : 'setup')
+  );
+
+  /** Single source of truth for navigation: state + URL together. */
+  const go = useCallback((next: View, replace = false) => {
+    setView(next);
+    const url = route.current.base + next;
+    if (window.location.pathname !== url) {
+      window.history[replace ? 'replaceState' : 'pushState']({}, '', url);
+    }
+  }, []);
+
+  /* Canonicalise the URL on first paint (e.g. bare /atlas/ -> /atlas/dashboard). */
+  useEffect(() => { go(view, true); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* Back/forward buttons drive the view. */
+  useEffect(() => {
+    const onPop = () => {
+      const r = readRoute();
+      route.current = r;
+      setView(r.view ?? (state.setupDone ? 'dashboard' : 'setup'));
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, [state.setupDone]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement;
       if (/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || e.metaKey || e.ctrlKey || e.altKey) return;
       const map: Record<string, View> = { '1': 'dashboard', '2': 'calendar', '3': 'cascader', '4': 'group', '5': 'setup' };
-      if (map[e.key]) { setView(map[e.key]); return; }
+      if (map[e.key]) { go(map[e.key]); return; }
       if (e.key === '?') { setHelp(true); return; }
-      if (e.key === 'g') setView('group');
-      if (e.key === 't') setView('calendar');
-      if (e.key === 'n' && state.setupDone) setView('cascader');
+      if (e.key === 'g') go('group');
+      if (e.key === 't') go('calendar');
+      if (e.key === 'n' && state.setupDone) go('cascader');
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [state.setupDone]);
+  }, [go, state.setupDone]);
 
   /* First run forces setup; finishing setup (or loading the demo) lands on
      the dashboard. */
@@ -50,16 +92,18 @@ function Workspace() {
     }
     if (!booted.current) {
       booted.current = true;
-      setView('dashboard');
+      go('dashboard');
     }
-  }, [state.setupDone]);
+  }, [state.setupDone, go]);
+
+  const [help, setHelp] = useState(false);
 
   return (
     <div className="min-h-screen">
-      <Sidebar view={view} onNav={setView} />
+      <Sidebar view={view} onNav={(v) => go(v)} />
       <main className="pl-60">
         <div className="mx-auto max-w-[1500px] px-6 lg:px-10 py-8">
-          {view === 'dashboard' && <Dashboard onNav={setView} />}
+          {view === 'dashboard' && <Dashboard onNav={go} />}
           {view === 'calendar' && <CalendarView />}
           {view === 'cascader' && <Cascader />}
           {view === 'group' && <GroupSync />}
@@ -84,7 +128,7 @@ function Workspace() {
             ))}
           </ul>
           <p className="mt-5 pt-4 border-t border-white/[0.06] text-[12px] text-fog-500 leading-relaxed">
-            {Icons.bolt('h-3.5 w-3.5 inline mb-0.5 mr-1')}Built for the keyboard and the trackpad: drag cascade blocks between days, double-click to log one done, click calendar days for agendas.
+            {Icons.bolt('h-3.5 w-3.5 inline mb-0.5 mr-1')}Every view has its own URL — /dashboard, /calendar, /cascader, /group, /setup — so you can bookmark or share any screen.
           </p>
         </Modal>
       )}
